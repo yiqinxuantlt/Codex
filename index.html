@@ -1,0 +1,2446 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="paper">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>读书笔记随机回顾</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: "rgb(var(--color-paper) / <alpha-value>)",
+            surface: "rgb(var(--color-surface) / <alpha-value>)",
+            surfaceSoft: "rgb(var(--color-surface-soft) / <alpha-value>)",
+            ink: "rgb(var(--color-ink) / <alpha-value>)",
+            muted: "rgb(var(--color-muted) / <alpha-value>)",
+            sage: "rgb(var(--color-sage) / <alpha-value>)",
+            clay: "rgb(var(--color-clay) / <alpha-value>)",
+            borderSoft: "rgb(var(--color-border) / <alpha-value>)"
+          },
+          boxShadow: {
+            card: "var(--shadow-card)"
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --color-paper: 244 239 229;
+      --color-surface: 255 255 255;
+      --color-surface-soft: 251 250 246;
+      --color-ink: 45 41 35;
+      --color-muted: 129 119 104;
+      --color-sage: 102 116 94;
+      --color-clay: 181 107 79;
+      --color-border: 45 41 35;
+      --grid-line: rgba(255, 255, 255, 0.22);
+      --grain-dot: rgba(45, 41, 35, 0.14);
+      --backdrop: rgba(45, 41, 35, 0.18);
+      --shadow-card: 0 24px 70px rgba(62, 51, 37, 0.12), 0 3px 12px rgba(62, 51, 37, 0.06);
+      --note-font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      --note-font-size-base: 1.45rem;
+      --note-font-size-sm: 1.7rem;
+      --note-font-size-md: 1.9rem;
+      --note-line-height: 1.95;
+    }
+
+    html[data-theme="night"] {
+      color-scheme: dark;
+      --color-paper: 18 20 20;
+      --color-surface: 28 31 31;
+      --color-surface-soft: 34 38 37;
+      --color-ink: 232 226 214;
+      --color-muted: 166 157 141;
+      --color-sage: 151 173 139;
+      --color-clay: 223 145 112;
+      --color-border: 232 226 214;
+      --grid-line: rgba(255, 255, 255, 0.045);
+      --grain-dot: rgba(255, 255, 255, 0.08);
+      --backdrop: rgba(0, 0, 0, 0.48);
+      --shadow-card: 0 28px 90px rgba(0, 0, 0, 0.34), 0 3px 18px rgba(0, 0, 0, 0.22);
+    }
+
+    html[data-theme="sepia"] {
+      color-scheme: light;
+      --color-paper: 235 222 197;
+      --color-surface: 254 248 234;
+      --color-surface-soft: 247 237 214;
+      --color-ink: 62 45 32;
+      --color-muted: 133 102 76;
+      --color-sage: 109 116 75;
+      --color-clay: 159 84 58;
+      --color-border: 62 45 32;
+      --grid-line: rgba(255, 255, 255, 0.22);
+      --grain-dot: rgba(78, 49, 25, 0.13);
+      --backdrop: rgba(62, 45, 32, 0.2);
+      --shadow-card: 0 25px 80px rgba(88, 58, 28, 0.16), 0 4px 16px rgba(88, 58, 28, 0.08);
+    }
+
+    html[data-theme="green"] {
+      color-scheme: light;
+      --color-paper: 227 235 225;
+      --color-surface: 250 253 247;
+      --color-surface-soft: 238 246 235;
+      --color-ink: 37 50 43;
+      --color-muted: 92 112 99;
+      --color-sage: 74 112 85;
+      --color-clay: 172 91 71;
+      --color-border: 37 50 43;
+      --grid-line: rgba(255, 255, 255, 0.24);
+      --grain-dot: rgba(37, 50, 43, 0.12);
+      --backdrop: rgba(37, 50, 43, 0.2);
+      --shadow-card: 0 24px 70px rgba(42, 75, 55, 0.13), 0 3px 12px rgba(42, 75, 55, 0.07);
+    }
+
+    * {
+      scrollbar-color: rgb(var(--color-sage) / 0.45) transparent;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background:
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        rgb(var(--color-paper));
+      background-size: 34px 34px;
+      font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      color: rgb(var(--color-ink));
+      transition: background-color 240ms ease, color 240ms ease;
+    }
+
+    .soft-noise::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image: radial-gradient(var(--grain-dot) 0.6px, transparent 0.6px);
+      background-size: 11px 11px;
+      mix-blend-mode: multiply;
+    }
+
+    html[data-theme="night"] .soft-noise::before {
+      mix-blend-mode: screen;
+      opacity: 0.14;
+    }
+
+    .fade-in {
+      animation: fadeIn 520ms ease both;
+    }
+
+    .quote-swap {
+      animation: quoteSwap 360ms ease both;
+    }
+
+    .quote-swap-next {
+      animation: quoteNext 320ms ease both;
+    }
+
+    .quote-swap-previous {
+      animation: quotePrevious 320ms ease both;
+    }
+
+    #noteText {
+      font-family: var(--note-font-family);
+      font-size: var(--note-font-size-base);
+      line-height: var(--note-line-height);
+    }
+
+    .note-preview {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
+    .settings-backdrop {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 220ms ease;
+      background: var(--backdrop);
+    }
+
+    .settings-panel {
+      transform: translateY(calc(100% + 2rem));
+      transition: transform 280ms ease;
+    }
+
+    body.settings-open .settings-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    body.settings-open .settings-panel {
+      transform: translateY(0);
+    }
+
+    .style-choice[aria-pressed="true"],
+    .font-choice[aria-pressed="true"] {
+      border-color: rgb(var(--color-sage) / 0.68);
+      background: rgb(var(--color-sage) / 0.12);
+      color: rgb(var(--color-ink));
+      box-shadow: inset 0 0 0 1px rgb(var(--color-sage) / 0.18);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes quoteSwap {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes quoteNext {
+      from {
+        opacity: 0;
+        transform: translateX(26px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes quotePrevious {
+      from {
+        opacity: 0;
+        transform: translateX(-26px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+    }
+
+    @media (min-width: 640px) {
+      #noteText {
+        font-size: var(--note-font-size-sm);
+      }
+
+      .settings-panel {
+        transform: translateX(calc(100% + 2rem));
+      }
+    }
+
+    @media (min-width: 768px) {
+      #noteText {
+        font-size: var(--note-font-size-md);
+      }
+    }
+  </style>
+</head>
+<body class="soft-noise">
+  <input id="csvInput" type="file" accept=".csv,text/csv" class="sr-only" />
+  <input id="fontInput" type="file" accept=".ttf,.otf,.woff,.woff2,font/*" class="sr-only" />
+
+  <main class="relative z-10 flex min-h-dvh items-center justify-center px-4 py-8 pb-24 sm:px-8 sm:py-10">
+    <section id="importView" class="fade-in w-full max-w-xl text-center">
+      <p class="mb-3 text-sm tracking-[0.32em] text-sage">READING NOTES</p>
+      <h1 class="text-4xl font-semibold leading-tight text-ink sm:text-5xl">片刻回到书里</h1>
+      <p class="mx-auto mt-5 max-w-md text-base leading-8 text-muted sm:text-lg">
+        导入带有“笔记内容”的 CSV 文件，之后每次打开都会直接进入随机回顾。
+      </p>
+
+      <div class="mt-10 rounded-[28px] border border-borderSoft/10 bg-surface/72 p-7 shadow-card backdrop-blur-sm sm:p-9">
+        <label
+          for="csvInput"
+          class="group flex cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-sage/35 bg-surfaceSoft px-6 py-12 transition hover:border-sage/70 hover:bg-surface focus-within:ring-4 focus-within:ring-sage/15"
+        >
+          <span class="flex h-14 w-14 items-center justify-center rounded-full border border-sage/20 bg-sage/10 text-2xl text-sage">+</span>
+          <span class="mt-5 text-lg font-semibold text-ink">选择 CSV 文件</span>
+          <span class="mt-2 max-w-xs text-sm leading-6 text-muted">支持包含逗号、换行和中文表头的读书笔记表格</span>
+        </label>
+      </div>
+
+      <p id="importStatus" class="mt-6 min-h-7 text-sm leading-7 text-clay" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="reviewView" class="hidden w-full max-w-4xl">
+      <div class="flex min-h-[72dvh] flex-col items-center justify-center">
+        <div class="mb-5 flex w-full max-w-3xl flex-wrap items-center justify-between gap-3 px-1 text-xs leading-5 text-muted sm:text-sm">
+          <span id="sessionSummary">今日 0 分钟</span>
+          <span id="syncModeText">本地模式</span>
+          <span id="swipeHint" class="sm:hidden">左滑上一条 · 右滑下一条</span>
+        </div>
+
+        <article id="readingCard" class="fade-in relative w-full max-w-3xl touch-pan-y rounded-[28px] border border-borderSoft/10 bg-surface px-6 py-8 shadow-card sm:rounded-[30px] sm:px-12 sm:py-12 md:px-16 md:py-14">
+          <div class="absolute left-7 top-6 text-6xl leading-none text-sage/15 sm:left-10 sm:top-8 sm:text-7xl">“</div>
+          <div id="quoteWrap" class="relative">
+            <p id="noteText" class="whitespace-pre-wrap font-medium tracking-normal text-ink"></p>
+            <p id="noteSource" class="mt-8 text-right text-sm leading-7 text-muted sm:text-base"></p>
+          </div>
+        </article>
+
+        <div class="mt-8 flex w-full max-w-2xl flex-wrap items-center justify-center gap-3 sm:mt-9 sm:gap-4">
+          <button
+            id="previousButton"
+            type="button"
+            class="min-h-12 rounded-full border border-borderSoft/10 bg-surface/85 px-5 py-3 text-sm font-semibold text-muted shadow-[0_10px_24px_rgb(var(--color-border)/0.08)] transition hover:-translate-y-0.5 hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/20 active:translate-y-0"
+            aria-label="上一条笔记"
+          >
+            上一条
+          </button>
+          <button
+            id="randomButton"
+            type="button"
+            class="min-h-12 rounded-full bg-ink px-7 py-3 text-base font-semibold text-paper shadow-[0_12px_28px_rgb(var(--color-border)/0.18)] transition hover:-translate-y-0.5 hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20 active:translate-y-0 sm:px-8 sm:py-4"
+          >
+            ✨ 随机回顾
+          </button>
+          <button
+            id="nextButton"
+            type="button"
+            class="min-h-12 rounded-full border border-borderSoft/10 bg-surface/85 px-5 py-3 text-sm font-semibold text-muted shadow-[0_10px_24px_rgb(var(--color-border)/0.08)] transition hover:-translate-y-0.5 hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/20 active:translate-y-0"
+            aria-label="下一条笔记"
+          >
+            下一条
+          </button>
+          <p id="countText" class="text-sm text-muted"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <button
+    id="settingsButton"
+    type="button"
+    class="fixed bottom-5 right-5 z-20 hidden h-12 w-12 items-center justify-center rounded-full border border-borderSoft/10 bg-surface/80 text-xl text-muted shadow-[0_12px_30px_rgb(var(--color-border)/0.13)] backdrop-blur transition hover:-translate-y-0.5 hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/20 active:translate-y-0 sm:bottom-6 sm:right-6"
+    aria-label="打开设置"
+    aria-expanded="false"
+    aria-controls="settingsPanel"
+  >
+    ⚙
+  </button>
+
+  <div id="settingsLayer" class="fixed inset-0 z-30 pointer-events-none">
+    <button
+      id="settingsBackdrop"
+      type="button"
+      class="settings-backdrop absolute inset-0 backdrop-blur-[2px]"
+      aria-label="关闭设置"
+    ></button>
+
+    <aside
+      id="settingsPanel"
+      class="settings-panel pointer-events-auto absolute inset-x-4 bottom-4 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[26px] border border-borderSoft/10 bg-surface p-6 shadow-card sm:inset-y-4 sm:left-auto sm:right-4 sm:w-[410px] sm:rounded-[28px] sm:p-7"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settingsTitle"
+      aria-hidden="true"
+      tabindex="-1"
+    >
+      <div class="flex items-start justify-between gap-5">
+        <div>
+          <p class="text-xs tracking-[0.28em] text-sage">SETTINGS</p>
+          <h2 id="settingsTitle" class="mt-2 text-2xl font-semibold text-ink">回顾设置</h2>
+        </div>
+        <button
+          id="settingsCloseButton"
+          type="button"
+          class="flex h-10 w-10 items-center justify-center rounded-full border border-borderSoft/10 text-xl leading-none text-muted transition hover:border-clay/40 hover:text-clay focus:outline-none focus:ring-4 focus:ring-clay/15"
+          aria-label="关闭设置"
+        >
+          ×
+        </button>
+      </div>
+
+      <div id="settingsHomeView" data-settings-view="home">
+        <section class="mt-7 rounded-[20px] border border-borderSoft/10 bg-surfaceSoft p-4">
+          <p class="text-xs tracking-[0.24em] text-clay">SYNC</p>
+          <h3 class="mt-2 text-base font-semibold text-ink">同步状态</h3>
+          <p id="syncStatusText" class="mt-2 text-sm leading-6 text-muted">当前为本地模式</p>
+          <p id="syncAddressText" class="mt-1 break-all text-xs leading-5 text-muted"></p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              id="syncRefreshButton"
+              type="button"
+              class="hidden rounded-full border border-borderSoft/10 bg-surface px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+            >
+              刷新同步数据
+            </button>
+            <button
+              id="syncImportLocalButton"
+              type="button"
+              class="hidden rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20"
+            >
+              导入本机数据
+            </button>
+          </div>
+        </section>
+
+        <div class="mt-4 rounded-[20px] border border-sage/15 bg-sage/5 px-5 py-4">
+          <p class="text-sm text-muted">当前笔记</p>
+          <p id="settingsNoteCount" class="mt-1 text-2xl font-semibold text-ink">0 条</p>
+          <p id="storageHintText" class="mt-1 text-xs leading-5 text-muted">数据保存在浏览器 IndexedDB 中</p>
+        </div>
+
+        <div class="mt-7 grid gap-3">
+          <button
+            id="openLibraryButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">句子库管理</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">新增、编辑、删除已保存笔记</span>
+            </span>
+            <span class="text-xl text-sage" aria-hidden="true">›</span>
+          </button>
+
+          <button
+            id="openStyleButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">显示、主题与字体</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">夜间主题、本地字体、字号和行距</span>
+            </span>
+            <span class="text-xl text-sage" aria-hidden="true">›</span>
+          </button>
+
+          <button
+            id="openRecordsButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">阅读记录</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">查看每条句子的停留时间</span>
+            </span>
+            <span class="text-xl text-sage" aria-hidden="true">›</span>
+          </button>
+        </div>
+
+        <div class="mt-7 space-y-3 border-t border-borderSoft/10 pt-5">
+          <button
+            id="reimportButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">重新导入 CSV</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">导入后会覆盖当前句子库</span>
+            </span>
+            <span class="text-xl text-sage" aria-hidden="true">+</span>
+          </button>
+
+          <button
+            id="clearDataButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-clay/20 bg-surfaceSoft px-5 py-4 text-left transition hover:border-clay/45 hover:bg-clay/5 focus:outline-none focus:ring-4 focus:ring-clay/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">清空句子库</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">保留主题和字体设置</span>
+            </span>
+            <span class="text-xl text-clay" aria-hidden="true">⌫</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="settingsLibraryView" data-settings-view="library" class="hidden">
+        <button
+          type="button"
+          data-settings-back
+          class="mt-7 inline-flex items-center rounded-full border border-borderSoft/10 bg-surfaceSoft px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+        >
+          ← 返回设置
+        </button>
+
+        <section class="mt-5 rounded-[20px] border border-sage/15 bg-sage/5 p-4">
+          <h3 id="libraryFormTitle" class="text-base font-semibold text-ink">新增句子</h3>
+          <form id="noteForm" class="mt-4 space-y-3">
+            <label class="block">
+              <span class="text-sm text-muted">笔记内容</span>
+              <textarea
+                id="noteContentInput"
+                rows="5"
+                class="mt-2 w-full resize-y rounded-[16px] border border-borderSoft/10 bg-surface px-4 py-3 text-base leading-7 text-ink outline-none transition focus:border-sage/45 focus:ring-4 focus:ring-sage/15"
+                placeholder="写下一句想回看的话"
+              ></textarea>
+            </label>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label class="block">
+                <span class="text-sm text-muted">书名</span>
+                <input
+                  id="noteBookInput"
+                  type="text"
+                  class="mt-2 w-full rounded-[14px] border border-borderSoft/10 bg-surface px-4 py-3 text-sm text-ink outline-none transition focus:border-sage/45 focus:ring-4 focus:ring-sage/15"
+                  placeholder="未知书名"
+                />
+              </label>
+              <label class="block">
+                <span class="text-sm text-muted">作者</span>
+                <input
+                  id="noteAuthorInput"
+                  type="text"
+                  class="mt-2 w-full rounded-[14px] border border-borderSoft/10 bg-surface px-4 py-3 text-sm text-ink outline-none transition focus:border-sage/45 focus:ring-4 focus:ring-sage/15"
+                  placeholder="可留空"
+                />
+              </label>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+              <button
+                id="saveNoteButton"
+                type="submit"
+                class="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20"
+              >
+                保存句子
+              </button>
+              <button
+                id="cancelEditButton"
+                type="button"
+                class="hidden rounded-full border border-borderSoft/10 bg-surface px-5 py-3 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+              >
+                取消编辑
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="mt-6">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-base font-semibold text-ink">已保存句子</h3>
+            <span id="libraryCountText" class="text-sm text-muted">0 条</span>
+          </div>
+          <div id="libraryList" class="mt-3 space-y-3"></div>
+        </section>
+      </div>
+
+      <div id="settingsStyleView" data-settings-view="style" class="hidden">
+        <button
+          type="button"
+          data-settings-back
+          class="mt-7 inline-flex items-center rounded-full border border-borderSoft/10 bg-surfaceSoft px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+        >
+          ← 返回设置
+        </button>
+
+        <section class="mt-6 space-y-7">
+          <div>
+            <p class="text-sm font-semibold text-ink">主题</p>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-left text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="theme" data-style-value="paper" aria-pressed="false">纸页</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-left text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="theme" data-style-value="night" aria-pressed="false">黑夜</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-left text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="theme" data-style-value="sepia" aria-pressed="false">暖黄</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-left text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="theme" data-style-value="green" aria-pressed="false">青灰</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-sm font-semibold text-ink">内置字体</p>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="font" data-style-value="serif" aria-pressed="false">宋体</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="font" data-style-value="kai" aria-pressed="false">楷体</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="font" data-style-value="fang" aria-pressed="false">仿宋</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="font" data-style-value="sans" aria-pressed="false">黑体</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold text-ink">本地字体</p>
+              <button
+                id="fontImportButton"
+                type="button"
+                class="rounded-full border border-sage/25 bg-surfaceSoft px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15"
+              >
+                导入字体
+              </button>
+            </div>
+            <p class="mt-2 text-xs leading-5 text-muted">支持 ttf、otf、woff、woff2；同步模式下会保存在电脑端主库。</p>
+            <div id="customFontList" class="mt-3 space-y-2"></div>
+          </div>
+
+          <div>
+            <p class="text-sm font-semibold text-ink">字号</p>
+            <div class="mt-3 grid grid-cols-4 gap-2">
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="size" data-style-value="small" aria-pressed="false">小</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="size" data-style-value="medium" aria-pressed="false">中</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="size" data-style-value="large" aria-pressed="false">大</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="size" data-style-value="xlarge" aria-pressed="false">特大</button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-sm font-semibold text-ink">行距</p>
+            <div class="mt-3 grid grid-cols-3 gap-2">
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="lineHeight" data-style-value="compact" aria-pressed="false">紧凑</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="lineHeight" data-style-value="relaxed" aria-pressed="false">舒展</button>
+              <button type="button" class="style-choice rounded-[14px] border border-borderSoft/10 bg-surfaceSoft px-3 py-3 text-sm text-muted transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15" data-style-group="lineHeight" data-style-value="spacious" aria-pressed="false">宽松</button>
+            </div>
+          </div>
+
+          <div class="rounded-[20px] border border-sage/15 bg-sage/5 p-4">
+            <p class="text-sm text-muted">预览</p>
+            <p id="stylePreviewText" class="mt-2 text-ink">山中何事？松花酿酒，春水煎茶。</p>
+          </div>
+        </section>
+      </div>
+
+      <div id="settingsRecordsView" data-settings-view="records" class="hidden">
+        <button
+          type="button"
+          data-settings-back
+          class="mt-7 inline-flex items-center rounded-full border border-borderSoft/10 bg-surfaceSoft px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+        >
+          ← 返回设置
+        </button>
+
+        <section class="mt-6">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-base font-semibold text-ink">阅读摘要</h3>
+            <span id="recordsUpdatedText" class="text-xs text-muted">实时统计</span>
+          </div>
+          <div id="recordsSummaryGrid" class="mt-3 grid grid-cols-2 gap-3"></div>
+        </section>
+
+        <section class="mt-6">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-base font-semibold text-ink">停留最长</h3>
+            <span id="recordsCountText" class="text-sm text-muted">0 条</span>
+          </div>
+          <div id="recordsList" class="mt-3 space-y-3"></div>
+        </section>
+      </div>
+
+      <p id="settingsStatus" class="mt-5 min-h-6 text-sm leading-6 text-clay" role="status" aria-live="polite"></p>
+    </aside>
+  </div>
+
+  <script>
+    const DB_NAME = "reading-note-reviewer-db";
+    const DB_VERSION = 2;
+    const NOTES_STORE = "notes";
+    const SETTINGS_STORE = "settings";
+    const FONTS_STORE = "fonts";
+    const READING_EVENTS_STORE = "readingEvents";
+    const DISPLAY_SETTINGS_KEY = "display";
+    const MIGRATION_KEY = "legacy-localstorage-v1-migrated";
+    const LEGACY_NOTES_KEY = "reading-note-reviewer.notes.v1";
+    const LEGACY_STYLE_KEY = "reading-note-reviewer.display.v1";
+
+    function isLanSyncHost(hostname) {
+      const host = hostname.replace(/^\[|\]$/g, "");
+      if (["localhost", "127.0.0.1", "::1"].includes(host)) {
+        return true;
+      }
+
+      const parts = host.split(".").map((part) => Number(part));
+      if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+        return false;
+      }
+
+      return (
+        parts[0] === 10 ||
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] === 192 && parts[1] === 168)
+      );
+    }
+
+    const LAN_MODE = window.location.protocol === "http:" && isLanSyncHost(window.location.hostname);
+    const SYNC_API_BASE = LAN_MODE ? `${window.location.origin}/api` : "";
+    const MIN_READING_EVENT_MS = 800;
+
+    const DEFAULT_DISPLAY_SETTINGS = {
+      theme: "paper",
+      fontMode: "builtin",
+      font: "serif",
+      customFontId: "",
+      size: "medium",
+      lineHeight: "relaxed"
+    };
+
+    const THEME_OPTIONS = {
+      paper: true,
+      night: true,
+      sepia: true,
+      green: true
+    };
+
+    const FONT_OPTIONS = {
+      serif: {
+        stack: "\"Noto Serif SC\", \"Songti SC\", \"STSong\", \"SimSun\", serif"
+      },
+      kai: {
+        stack: "\"KaiTi\", \"STKaiti\", \"Kaiti SC\", serif"
+      },
+      fang: {
+        stack: "\"FangSong\", \"STFangsong\", serif"
+      },
+      sans: {
+        stack: "\"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans SC\", sans-serif"
+      }
+    };
+
+    const SIZE_OPTIONS = {
+      small: { base: "1.18rem", sm: "1.32rem", md: "1.48rem" },
+      medium: { base: "1.45rem", sm: "1.7rem", md: "1.9rem" },
+      large: { base: "1.62rem", sm: "1.92rem", md: "2.18rem" },
+      xlarge: { base: "1.78rem", sm: "2.12rem", md: "2.42rem" }
+    };
+
+    const LINE_HEIGHT_OPTIONS = {
+      compact: "1.65",
+      relaxed: "1.95",
+      spacious: "2.2"
+    };
+
+    const elements = {
+      importView: document.getElementById("importView"),
+      reviewView: document.getElementById("reviewView"),
+      csvInput: document.getElementById("csvInput"),
+      fontInput: document.getElementById("fontInput"),
+      importStatus: document.getElementById("importStatus"),
+      settingsButton: document.getElementById("settingsButton"),
+      settingsBackdrop: document.getElementById("settingsBackdrop"),
+      settingsPanel: document.getElementById("settingsPanel"),
+      settingsCloseButton: document.getElementById("settingsCloseButton"),
+      settingsNoteCount: document.getElementById("settingsNoteCount"),
+      storageHintText: document.getElementById("storageHintText"),
+      settingsStatus: document.getElementById("settingsStatus"),
+      settingsViews: Array.from(document.querySelectorAll("[data-settings-view]")),
+      openLibraryButton: document.getElementById("openLibraryButton"),
+      openStyleButton: document.getElementById("openStyleButton"),
+      openRecordsButton: document.getElementById("openRecordsButton"),
+      reimportButton: document.getElementById("reimportButton"),
+      clearDataButton: document.getElementById("clearDataButton"),
+      libraryList: document.getElementById("libraryList"),
+      libraryCountText: document.getElementById("libraryCountText"),
+      noteForm: document.getElementById("noteForm"),
+      libraryFormTitle: document.getElementById("libraryFormTitle"),
+      noteContentInput: document.getElementById("noteContentInput"),
+      noteBookInput: document.getElementById("noteBookInput"),
+      noteAuthorInput: document.getElementById("noteAuthorInput"),
+      saveNoteButton: document.getElementById("saveNoteButton"),
+      cancelEditButton: document.getElementById("cancelEditButton"),
+      styleChoices: Array.from(document.querySelectorAll("[data-style-group]")),
+      fontImportButton: document.getElementById("fontImportButton"),
+      customFontList: document.getElementById("customFontList"),
+      stylePreviewText: document.getElementById("stylePreviewText"),
+      recordsSummaryGrid: document.getElementById("recordsSummaryGrid"),
+      recordsList: document.getElementById("recordsList"),
+      recordsCountText: document.getElementById("recordsCountText"),
+      recordsUpdatedText: document.getElementById("recordsUpdatedText"),
+      sessionSummary: document.getElementById("sessionSummary"),
+      swipeHint: document.getElementById("swipeHint"),
+      readingCard: document.getElementById("readingCard"),
+      previousButton: document.getElementById("previousButton"),
+      randomButton: document.getElementById("randomButton"),
+      nextButton: document.getElementById("nextButton"),
+      quoteWrap: document.getElementById("quoteWrap"),
+      noteText: document.getElementById("noteText"),
+      noteSource: document.getElementById("noteSource"),
+      countText: document.getElementById("countText"),
+      syncModeText: document.getElementById("syncModeText"),
+      syncStatusText: document.getElementById("syncStatusText"),
+      syncAddressText: document.getElementById("syncAddressText"),
+      syncRefreshButton: document.getElementById("syncRefreshButton"),
+      syncImportLocalButton: document.getElementById("syncImportLocalButton")
+    };
+
+    let db = null;
+    let notes = [];
+    let readingEvents = [];
+    let readingStats = createEmptyReadingStats();
+    let customFonts = [];
+    let registeredFonts = new Map();
+    let currentIndex = -1;
+    let editingNoteId = null;
+    let displaySettings = { ...DEFAULT_DISPLAY_SETTINGS };
+    let readingSession = null;
+    let swipeStart = null;
+
+    function cleanText(value) {
+      return String(value ?? "").replace(/\uFEFF/g, "").trim();
+    }
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    function createId(prefix = "id") {
+      if (window.crypto?.randomUUID) {
+        return `${prefix}_${crypto.randomUUID()}`;
+      }
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+
+    function createNote(data = {}) {
+      const content = cleanText(data.content);
+      if (!content) {
+        return null;
+      }
+
+      const timestamp = nowIso();
+      return {
+        id: cleanText(data.id) || createId("note"),
+        content,
+        book: cleanText(data.book) || "未知书名",
+        author: cleanText(data.author),
+        chapter: cleanText(data.chapter),
+        remark: cleanText(data.remark),
+        createdAt: cleanText(data.createdAt) || timestamp,
+        updatedAt: cleanText(data.updatedAt) || timestamp
+      };
+    }
+
+    function normalizeRow(row) {
+      return createNote({
+        content: row["笔记内容"],
+        book: row["书名"],
+        author: row["作者"],
+        chapter: row["章节名称"],
+        remark: row["备注"]
+      });
+    }
+
+    function sanitizeDisplaySettings(input = {}) {
+      const nextSettings = {
+        ...DEFAULT_DISPLAY_SETTINGS,
+        ...input
+      };
+
+      if (!THEME_OPTIONS[nextSettings.theme]) {
+        nextSettings.theme = DEFAULT_DISPLAY_SETTINGS.theme;
+      }
+      if (!FONT_OPTIONS[nextSettings.font]) {
+        nextSettings.font = DEFAULT_DISPLAY_SETTINGS.font;
+      }
+      if (!SIZE_OPTIONS[nextSettings.size]) {
+        nextSettings.size = DEFAULT_DISPLAY_SETTINGS.size;
+      }
+      if (!LINE_HEIGHT_OPTIONS[nextSettings.lineHeight]) {
+        nextSettings.lineHeight = DEFAULT_DISPLAY_SETTINGS.lineHeight;
+      }
+      if (!["builtin", "custom"].includes(nextSettings.fontMode)) {
+        nextSettings.fontMode = DEFAULT_DISPLAY_SETTINGS.fontMode;
+      }
+      nextSettings.customFontId = cleanText(nextSettings.customFontId);
+
+      return nextSettings;
+    }
+
+    function escapeHtml(value) {
+      return cleanText(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function requestToPromise(request) {
+      return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function transactionDone(transaction) {
+      return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    }
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error("当前浏览器不支持 IndexedDB。"));
+          return;
+        }
+
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = () => {
+          const nextDb = request.result;
+          if (!nextDb.objectStoreNames.contains(NOTES_STORE)) {
+            const notesStore = nextDb.createObjectStore(NOTES_STORE, { keyPath: "id" });
+            notesStore.createIndex("createdAt", "createdAt", { unique: false });
+            notesStore.createIndex("updatedAt", "updatedAt", { unique: false });
+          }
+          if (!nextDb.objectStoreNames.contains(SETTINGS_STORE)) {
+            nextDb.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
+          }
+          if (!nextDb.objectStoreNames.contains(FONTS_STORE)) {
+            const fontsStore = nextDb.createObjectStore(FONTS_STORE, { keyPath: "id" });
+            fontsStore.createIndex("createdAt", "createdAt", { unique: false });
+          }
+          if (!nextDb.objectStoreNames.contains(READING_EVENTS_STORE)) {
+            const eventsStore = nextDb.createObjectStore(READING_EVENTS_STORE, { keyPath: "id" });
+            eventsStore.createIndex("noteId", "noteId", { unique: false });
+            eventsStore.createIndex("dateKey", "dateKey", { unique: false });
+            eventsStore.createIndex("startedAt", "startedAt", { unique: false });
+            eventsStore.createIndex("endedAt", "endedAt", { unique: false });
+          }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function dbGet(storeName, key) {
+      const transaction = db.transaction(storeName, "readonly");
+      return requestToPromise(transaction.objectStore(storeName).get(key));
+    }
+
+    function dbGetAll(storeName) {
+      const transaction = db.transaction(storeName, "readonly");
+      return requestToPromise(transaction.objectStore(storeName).getAll());
+    }
+
+    async function dbPut(storeName, value) {
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).put(value);
+      await transactionDone(transaction);
+    }
+
+    async function dbDelete(storeName, key) {
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).delete(key);
+      await transactionDone(transaction);
+    }
+
+    async function dbClear(storeName) {
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).clear();
+      await transactionDone(transaction);
+    }
+
+    async function dbReplaceAll(storeName, records) {
+      const transaction = db.transaction(storeName, "readwrite");
+      const store = transaction.objectStore(storeName);
+      store.clear();
+      records.forEach((record) => store.put(record));
+      await transactionDone(transaction);
+    }
+
+    async function apiRequest(path, options = {}) {
+      const response = await fetch(`${SYNC_API_BASE}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP_${response.status}`);
+      }
+      return data;
+    }
+
+    function normalizeRemoteState(payload = {}) {
+      const state = payload.state || payload;
+      return {
+        notes: sortNotes(Array.isArray(state.notes) ? state.notes.map((note) => createNote(note)).filter(Boolean) : []),
+        settings: sanitizeDisplaySettings(state.settings || {}),
+        fonts: loadAndSortFonts(Array.isArray(state.fonts) ? state.fonts : []),
+        readingEvents: Array.isArray(state.readingEvents) ? state.readingEvents : [],
+        updatedAt: state.updatedAt || ""
+      };
+    }
+
+    const storage = {
+      mode: LAN_MODE ? "lan" : "local",
+      remoteUpdatedAt: "",
+      async loadAll() {
+        if (this.mode === "lan") {
+          const data = await apiRequest("/state");
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state;
+        }
+
+        return {
+          notes: await loadNotesFromDb(),
+          settings: await loadDisplaySettingsFromDb(),
+          fonts: await loadFontsFromDb(),
+          readingEvents: await loadReadingEventsFromDb(),
+          updatedAt: ""
+        };
+      },
+      async saveNotes(nextNotes, source = "notes") {
+        const sortedNotes = sortNotes(nextNotes);
+        if (this.mode === "lan") {
+          const data = await apiRequest("/notes", {
+            method: "POST",
+            body: JSON.stringify({
+              notes: sortedNotes,
+              replace: source === "csv-import" || source === "notes-replace",
+              source
+            })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.notes;
+        }
+        await persistNotesToDb(sortedNotes);
+        return sortedNotes;
+      },
+      async saveSettings(nextSettings, source = "settings") {
+        const cleanSettings = sanitizeDisplaySettings(nextSettings);
+        if (this.mode === "lan") {
+          const data = await apiRequest("/settings", {
+            method: "POST",
+            body: JSON.stringify({ settings: cleanSettings, source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.settings;
+        }
+        await persistDisplaySettingsToDb(cleanSettings);
+        return cleanSettings;
+      },
+      async saveFonts(nextFonts, source = "fonts") {
+        const sortedFonts = loadAndSortFonts(nextFonts);
+        if (this.mode === "lan") {
+          const data = await apiRequest("/fonts", {
+            method: "POST",
+            body: JSON.stringify({ fonts: sortedFonts, replace: true, source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.fonts;
+        }
+        await dbReplaceAll(FONTS_STORE, sortedFonts);
+        return sortedFonts;
+      },
+      async appendReadingEvents(events, source = "reading-events") {
+        const rows = Array.isArray(events) ? events : [];
+        if (!rows.length) {
+          return readingEvents;
+        }
+        if (this.mode === "lan") {
+          const data = await apiRequest("/reading-events", {
+            method: "POST",
+            body: JSON.stringify({ readingEvents: rows, source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.readingEvents;
+        }
+        for (const event of rows) {
+          await dbPut(READING_EVENTS_STORE, event);
+        }
+        return readingEvents.concat(rows);
+      },
+      async deleteNote(noteId) {
+        if (this.mode === "lan") {
+          const data = await apiRequest(`/notes/${encodeURIComponent(noteId)}`, { method: "DELETE" });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.notes;
+        }
+        await dbDelete(NOTES_STORE, noteId);
+        return notes.filter((item) => item.id !== noteId);
+      },
+      async deleteFont(fontId) {
+        if (this.mode === "lan") {
+          const data = await apiRequest(`/fonts/${encodeURIComponent(fontId)}`, { method: "DELETE" });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.fonts;
+        }
+        await dbDelete(FONTS_STORE, fontId);
+        return customFonts.filter((item) => item.id !== fontId);
+      },
+      async clearNotes(source = "clear-notes") {
+        if (this.mode === "lan") {
+          const data = await apiRequest("/clear-notes", {
+            method: "POST",
+            body: JSON.stringify({ source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.notes;
+        }
+        await dbClear(NOTES_STORE);
+        return [];
+      },
+      async replaceRemoteState(state, source = "local-migration") {
+        const data = await apiRequest("/state", {
+          method: "PUT",
+          body: JSON.stringify({ state, source })
+        });
+        const nextState = normalizeRemoteState(data);
+        this.remoteUpdatedAt = nextState.updatedAt;
+        return nextState;
+      }
+    };
+
+    async function persistNotesToDb(nextNotes = notes) {
+      const sortedNotes = sortNotes(nextNotes);
+      if (!sortedNotes.length) {
+        await dbClear(NOTES_STORE);
+        return;
+      }
+      await dbReplaceAll(NOTES_STORE, sortedNotes);
+    }
+
+    async function persistDisplaySettingsToDb(nextSettings = displaySettings) {
+      await dbPut(SETTINGS_STORE, {
+        key: DISPLAY_SETTINGS_KEY,
+        value: sanitizeDisplaySettings(nextSettings),
+        updatedAt: nowIso()
+      });
+    }
+
+    async function persistNotes(nextNotes = notes, source = "notes") {
+      notes = await storage.saveNotes(nextNotes, source);
+      updateNoteCounts();
+      updateSyncStatus();
+    }
+
+    async function persistDisplaySettings(source = "settings") {
+      displaySettings = await storage.saveSettings(displaySettings, source);
+      updateSyncStatus();
+    }
+
+    function sortNotes(nextNotes) {
+      return [...nextNotes].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    }
+
+    function getDateKey(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function createEmptyReadingStats() {
+      return {
+        todayDurationMs: 0,
+        todayViews: 0,
+        todayUniqueNotes: 0,
+        totalDurationMs: 0,
+        totalViews: 0,
+        byNote: new Map(),
+        sortedNotes: []
+      };
+    }
+
+    function formatDuration(durationMs) {
+      const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours) {
+        return `${hours}时${minutes}分`;
+      }
+      if (minutes) {
+        return `${minutes}分${seconds}秒`;
+      }
+      return `${seconds}秒`;
+    }
+
+    function formatShortDuration(durationMs) {
+      const totalMinutes = Math.floor(durationMs / 60000);
+      if (totalMinutes >= 60) {
+        return `${Math.floor(totalMinutes / 60)}时${totalMinutes % 60}分`;
+      }
+      if (totalMinutes > 0) {
+        return `${totalMinutes}分钟`;
+      }
+      return `${Math.max(0, Math.round(durationMs / 1000))}秒`;
+    }
+
+    function formatDateTime(value) {
+      if (!value) {
+        return "暂无记录";
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "暂无记录";
+      }
+
+      const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+      if (getDateKey(date) === getDateKey()) {
+        return `今天 ${time}`;
+      }
+      return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+    }
+
+    function getNoteSource(note) {
+      if (!note) {
+        return "已删除句子";
+      }
+      return note.author ? `《${note.book}》${note.author}` : `《${note.book}》`;
+    }
+
+    function aggregateReadingStats(events = readingEvents) {
+      const todayKey = getDateKey();
+      const todayNoteIds = new Set();
+      const byNote = new Map();
+      const stats = createEmptyReadingStats();
+
+      events.forEach((event) => {
+        const durationMs = Number(event.durationMs) || 0;
+        stats.totalDurationMs += durationMs;
+        stats.totalViews += 1;
+
+        if (event.dateKey === todayKey) {
+          stats.todayDurationMs += durationMs;
+          stats.todayViews += 1;
+          todayNoteIds.add(event.noteId);
+        }
+
+        if (!byNote.has(event.noteId)) {
+          byNote.set(event.noteId, {
+            noteId: event.noteId,
+            totalDurationMs: 0,
+            viewCount: 0,
+            lastViewedAt: "",
+            events: []
+          });
+        }
+
+        const noteStats = byNote.get(event.noteId);
+        noteStats.totalDurationMs += durationMs;
+        noteStats.viewCount += 1;
+        noteStats.events.push(event);
+        if (!noteStats.lastViewedAt || String(event.endedAt).localeCompare(noteStats.lastViewedAt) > 0) {
+          noteStats.lastViewedAt = event.endedAt;
+        }
+      });
+
+      byNote.forEach((noteStats) => {
+        noteStats.events.sort((a, b) => String(b.endedAt).localeCompare(String(a.endedAt)));
+      });
+
+      stats.todayUniqueNotes = todayNoteIds.size;
+      stats.byNote = byNote;
+      stats.sortedNotes = [...byNote.values()].sort((a, b) => {
+        if (b.totalDurationMs !== a.totalDurationMs) {
+          return b.totalDurationMs - a.totalDurationMs;
+        }
+        return String(b.lastViewedAt).localeCompare(String(a.lastViewedAt));
+      });
+      return stats;
+    }
+
+    function updateReadingStats() {
+      readingStats = aggregateReadingStats();
+      updateTopReadingSummary();
+    }
+
+    function updateTopReadingSummary() {
+      if (!elements.sessionSummary) {
+        return;
+      }
+
+      const todayDuration = readingStats.todayDurationMs ? formatShortDuration(readingStats.todayDurationMs) : "0分钟";
+      elements.sessionSummary.textContent = `今日 ${todayDuration} · ${readingStats.todayViews} 次浏览`;
+    }
+
+    async function loadReadingEventsFromDb() {
+      const rows = await dbGetAll(READING_EVENTS_STORE);
+      return rows.sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)));
+    }
+
+    async function migrateLegacyData() {
+      const migrationRecord = await dbGet(SETTINGS_STORE, MIGRATION_KEY);
+      if (migrationRecord?.value === true) {
+        return;
+      }
+
+      const existingNotes = await dbGetAll(NOTES_STORE);
+      const legacyNotesRaw = localStorage.getItem(LEGACY_NOTES_KEY);
+      if (legacyNotesRaw && !existingNotes.length) {
+        try {
+          const legacyNotes = JSON.parse(legacyNotesRaw);
+          if (Array.isArray(legacyNotes)) {
+            const migratedNotes = legacyNotes.map((note) => createNote(note)).filter(Boolean);
+            if (migratedNotes.length) {
+              await dbReplaceAll(NOTES_STORE, migratedNotes);
+              localStorage.setItem(`${LEGACY_NOTES_KEY}.migratedBackup`, legacyNotesRaw);
+              localStorage.removeItem(LEGACY_NOTES_KEY);
+            }
+          }
+        } catch {
+          localStorage.setItem(`${LEGACY_NOTES_KEY}.migrationFailedBackup`, legacyNotesRaw);
+        }
+      }
+
+      const existingSettings = await dbGet(SETTINGS_STORE, DISPLAY_SETTINGS_KEY);
+      const legacyStyleRaw = localStorage.getItem(LEGACY_STYLE_KEY);
+      if (legacyStyleRaw && !existingSettings) {
+        try {
+          const legacyStyle = JSON.parse(legacyStyleRaw);
+          await dbPut(SETTINGS_STORE, {
+            key: DISPLAY_SETTINGS_KEY,
+            value: sanitizeDisplaySettings(legacyStyle),
+            updatedAt: nowIso()
+          });
+          localStorage.setItem(`${LEGACY_STYLE_KEY}.migratedBackup`, legacyStyleRaw);
+          localStorage.removeItem(LEGACY_STYLE_KEY);
+        } catch {
+          localStorage.setItem(`${LEGACY_STYLE_KEY}.migrationFailedBackup`, legacyStyleRaw);
+        }
+      }
+
+      await dbPut(SETTINGS_STORE, {
+        key: MIGRATION_KEY,
+        value: true,
+        migratedAt: nowIso()
+      });
+    }
+
+    async function loadNotesFromDb() {
+      const rows = await dbGetAll(NOTES_STORE);
+      return sortNotes(rows.map((note) => createNote(note)).filter(Boolean));
+    }
+
+    async function loadFontsFromDb() {
+      const rows = await dbGetAll(FONTS_STORE);
+      return rows.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    }
+
+    async function loadDisplaySettingsFromDb() {
+      const record = await dbGet(SETTINGS_STORE, DISPLAY_SETTINGS_KEY);
+      return sanitizeDisplaySettings(record?.value || DEFAULT_DISPLAY_SETTINGS);
+    }
+
+    function setStatus(message = "") {
+      elements.importStatus.textContent = message;
+      elements.settingsStatus.textContent = message;
+    }
+
+    function updateNoteCounts() {
+      elements.countText.textContent = `${notes.length} 条笔记`;
+      elements.settingsNoteCount.textContent = `${notes.length} 条`;
+      elements.libraryCountText.textContent = `${notes.length} 条`;
+      updateTopReadingSummary();
+    }
+
+    function updateSyncStatus(message = "") {
+      if (!elements.syncModeText || !elements.syncStatusText) {
+        return;
+      }
+
+      if (storage.mode === "lan") {
+        const updated = storage.remoteUpdatedAt ? `，最近同步 ${formatDateTime(storage.remoteUpdatedAt)}` : "";
+        elements.syncModeText.textContent = "局域网同步";
+        elements.syncStatusText.textContent = message || `当前为局域网同步模式${updated}`;
+        elements.syncAddressText.textContent = window.location.href;
+        elements.storageHintText.textContent = "数据保存在电脑端同步主库中";
+        elements.syncRefreshButton.classList.remove("hidden");
+        return;
+      }
+
+      elements.syncModeText.textContent = "本地模式";
+      elements.syncStatusText.textContent = message || "当前为本地模式，数据只保存在这台设备。";
+      elements.syncAddressText.textContent = "";
+      elements.storageHintText.textContent = "数据保存在浏览器 IndexedDB 中";
+      elements.syncRefreshButton.classList.add("hidden");
+      elements.syncImportLocalButton.classList.add("hidden");
+    }
+
+    async function loadLocalSnapshot() {
+      return {
+        schemaVersion: 1,
+        updatedAt: nowIso(),
+        notes: await loadNotesFromDb(),
+        settings: await loadDisplaySettingsFromDb(),
+        fonts: await loadFontsFromDb(),
+        readingEvents: await loadReadingEventsFromDb(),
+        meta: {
+          createdAt: nowIso(),
+          lastWriteSource: "local-browser-import"
+        }
+      };
+    }
+
+    async function updateMigrationPrompt(remoteState) {
+      if (storage.mode !== "lan" || !elements.syncImportLocalButton) {
+        return;
+      }
+
+      const local = await loadLocalSnapshot();
+      const remoteEmpty = !remoteState.notes.length && !remoteState.fonts.length && !remoteState.readingEvents.length;
+      const localHasData = local.notes.length || local.fonts.length || local.readingEvents.length;
+      elements.syncImportLocalButton.classList.toggle("hidden", !(remoteEmpty && localHasData));
+    }
+
+    async function refreshFromRemote(message = "同步数据已刷新") {
+      if (storage.mode !== "lan") {
+        return;
+      }
+
+      const currentNoteId = notes[currentIndex]?.id || "";
+      await commitReadingSession("remote-refresh");
+      const state = await storage.loadAll();
+      notes = state.notes;
+      readingEvents = state.readingEvents;
+      customFonts = state.fonts;
+      displaySettings = state.settings;
+      await registerFonts(customFonts);
+      applyDisplaySettings();
+      updateReadingStats();
+      updateNoteCounts();
+      renderLibrary();
+      renderReadingRecords();
+      await updateMigrationPrompt(state);
+
+      if (!notes.length) {
+        currentIndex = -1;
+        showImportView(message);
+        updateSyncStatus(message);
+        return;
+      }
+
+      const nextIndex = Math.max(0, notes.findIndex((note) => note.id === currentNoteId));
+      if (elements.reviewView.classList.contains("hidden")) {
+        showReviewView();
+      } else {
+        displayNoteAt(nextIndex, false);
+        startReadingSession(notes[nextIndex].id, "remote-refresh");
+      }
+      updateSyncStatus(message);
+    }
+
+    async function importLocalDataToSync() {
+      if (storage.mode !== "lan") {
+        return;
+      }
+
+      const local = await loadLocalSnapshot();
+      const summary = `将本机数据导入同步库？\n\n句子：${local.notes.length} 条\n字体：${local.fonts.length} 个\n阅读记录：${local.readingEvents.length} 条`;
+      if (!window.confirm(summary)) {
+        return;
+      }
+
+      const state = await storage.replaceRemoteState(local, "local-browser-import");
+      notes = state.notes;
+      readingEvents = state.readingEvents;
+      customFonts = state.fonts;
+      displaySettings = state.settings;
+      await registerFonts(customFonts);
+      applyDisplaySettings();
+      updateReadingStats();
+      updateNoteCounts();
+      renderLibrary();
+      renderReadingRecords();
+      elements.syncImportLocalButton.classList.add("hidden");
+
+      if (notes.length) {
+        currentIndex = -1;
+        showReviewView();
+      } else {
+        showImportView("同步库仍为空，可以导入 CSV。");
+      }
+      updateSyncStatus("本机数据已导入同步库");
+    }
+
+    function startReadingSession(noteId, source = "initial") {
+      if (!noteId) {
+        readingSession = null;
+        return;
+      }
+
+      readingSession = {
+        noteId,
+        startedAt: Date.now(),
+        source
+      };
+    }
+
+    async function commitReadingSession(reason = "switch") {
+      if (!readingSession || !db) {
+        return null;
+      }
+
+      const endedAtMs = Date.now();
+      const durationMs = endedAtMs - readingSession.startedAt;
+      const session = readingSession;
+      readingSession = null;
+
+      if (durationMs < MIN_READING_EVENT_MS) {
+        return null;
+      }
+
+      const event = {
+        id: createId("event"),
+        noteId: session.noteId,
+        startedAt: new Date(session.startedAt).toISOString(),
+        endedAt: new Date(endedAtMs).toISOString(),
+        durationMs,
+        source: session.source,
+        reason,
+        dateKey: getDateKey(new Date(endedAtMs))
+      };
+
+      try {
+        const nextEvents = await storage.appendReadingEvents([event], reason);
+        readingEvents = Array.isArray(nextEvents) ? nextEvents : readingEvents.concat(event);
+        updateReadingStats();
+        updateSyncStatus();
+        return event;
+      } catch {
+        updateSyncStatus("阅读记录保存失败，请稍后刷新同步。");
+        return null;
+      }
+    }
+
+    function isSettingsOpen() {
+      return document.body.classList.contains("settings-open");
+    }
+
+    function getCustomFontById(fontId) {
+      return customFonts.find((font) => font.id === fontId);
+    }
+
+    function getActiveFontStack() {
+      if (displaySettings.fontMode === "custom") {
+        const font = registeredFonts.get(displaySettings.customFontId);
+        if (font) {
+          return font.stack;
+        }
+      }
+      return FONT_OPTIONS[displaySettings.font].stack;
+    }
+
+    function updateStyleButtons() {
+      elements.styleChoices.forEach((button) => {
+        const group = button.dataset.styleGroup;
+        let isActive = false;
+
+        if (group === "font") {
+          isActive = displaySettings.fontMode === "builtin" && displaySettings.font === button.dataset.styleValue;
+        } else {
+          isActive = displaySettings[group] === button.dataset.styleValue;
+        }
+
+        button.setAttribute("aria-pressed", String(isActive));
+      });
+    }
+
+    function updateStylePreview() {
+      const size = SIZE_OPTIONS[displaySettings.size];
+      const lineHeight = LINE_HEIGHT_OPTIONS[displaySettings.lineHeight];
+      elements.stylePreviewText.style.fontFamily = getActiveFontStack();
+      elements.stylePreviewText.style.fontSize = size.base;
+      elements.stylePreviewText.style.lineHeight = lineHeight;
+    }
+
+    function applyDisplaySettings() {
+      const size = SIZE_OPTIONS[displaySettings.size];
+      const lineHeight = LINE_HEIGHT_OPTIONS[displaySettings.lineHeight];
+
+      document.documentElement.dataset.theme = displaySettings.theme;
+      document.documentElement.style.setProperty("--note-font-family", getActiveFontStack());
+      document.documentElement.style.setProperty("--note-font-size-base", size.base);
+      document.documentElement.style.setProperty("--note-font-size-sm", size.sm);
+      document.documentElement.style.setProperty("--note-font-size-md", size.md);
+      document.documentElement.style.setProperty("--note-line-height", lineHeight);
+
+      updateStyleButtons();
+      updateStylePreview();
+      renderCustomFonts();
+    }
+
+    async function setDisplaySetting(group, value) {
+      if (group === "font") {
+        if (!FONT_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.fontMode = "builtin";
+        displaySettings.font = value;
+        displaySettings.customFontId = "";
+      } else if (group === "theme") {
+        if (!THEME_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.theme = value;
+      } else if (group === "size") {
+        if (!SIZE_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.size = value;
+      } else if (group === "lineHeight") {
+        if (!LINE_HEIGHT_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.lineHeight = value;
+      }
+
+      applyDisplaySettings();
+      await persistDisplaySettings("display-setting");
+      setStatus("显示设置已保存。");
+    }
+
+    async function registerFont(font) {
+      if (registeredFonts.has(font.id)) {
+        return true;
+      }
+
+      if (!window.FontFace) {
+        setStatus("当前浏览器不支持本地字体加载。");
+        return false;
+      }
+
+      try {
+        const family = `ReadingFont_${font.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        const face = new FontFace(family, `url("${font.dataUrl}")`);
+        await face.load();
+        document.fonts.add(face);
+        registeredFonts.set(font.id, {
+          ...font,
+          family,
+          stack: `"${family}", ${FONT_OPTIONS.serif.stack}`
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function registerFonts(fonts) {
+      for (const font of fonts) {
+        await registerFont(font);
+      }
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function isValidFontFile(file) {
+      return /\.(ttf|otf|woff2?)$/i.test(file.name) || /^font\//.test(file.type);
+    }
+
+    async function importFontFile(file) {
+      if (!file) {
+        return;
+      }
+
+      if (!isValidFontFile(file)) {
+        setStatus("请选择 ttf、otf、woff 或 woff2 字体文件。");
+        return;
+      }
+
+      setStatus("正在导入本地字体...");
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        const font = {
+          id: createId("font"),
+          name: cleanText(file.name.replace(/\.[^.]+$/, "")) || "本地字体",
+          fileName: file.name,
+          mimeType: file.type || "font/unknown",
+          dataUrl,
+          createdAt: nowIso()
+        };
+
+        const loaded = await registerFont(font);
+        if (!loaded) {
+          setStatus("字体加载失败，请换一个字体文件。");
+          return;
+        }
+
+        customFonts = loadAndSortFonts(customFonts.concat(font));
+        customFonts = await storage.saveFonts(customFonts, "font-import");
+
+        displaySettings.fontMode = "custom";
+        displaySettings.customFontId = font.id;
+        await persistDisplaySettings("font-import");
+        applyDisplaySettings();
+        setStatus("本地字体已导入并应用。");
+      } catch {
+        setStatus("字体导入失败，请重新选择文件。");
+      } finally {
+        elements.fontInput.value = "";
+      }
+    }
+
+    function loadAndSortFonts(fonts) {
+      return [...fonts].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    }
+
+    function renderCustomFonts() {
+      if (!elements.customFontList) {
+        return;
+      }
+
+      if (!customFonts.length) {
+        elements.customFontList.innerHTML = `
+          <div class="rounded-[16px] border border-dashed border-sage/25 bg-surfaceSoft px-4 py-5 text-sm leading-6 text-muted">
+            还没有导入本地字体。
+          </div>
+        `;
+        return;
+      }
+
+      elements.customFontList.innerHTML = customFonts.map((font) => {
+        const isActive = displaySettings.fontMode === "custom" && displaySettings.customFontId === font.id;
+        const registered = registeredFonts.get(font.id);
+        const previewStyle = registered ? `style="font-family: ${registered.stack}"` : "";
+        return `
+          <article class="rounded-[16px] border border-borderSoft/10 bg-surfaceSoft p-3">
+            <div class="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                class="font-choice flex-1 rounded-[12px] border border-borderSoft/10 bg-surface px-3 py-2 text-left text-sm text-ink transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15"
+                data-font-action="select"
+                data-font-id="${escapeHtml(font.id)}"
+                aria-pressed="${isActive}"
+              >
+                <span class="block font-semibold">${escapeHtml(font.name)}</span>
+                <span class="mt-1 block text-xs text-muted" ${previewStyle}>春水煎茶</span>
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-clay/20 px-3 py-2 text-xs text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15"
+                data-font-action="delete"
+                data-font-id="${escapeHtml(font.id)}"
+              >
+                删除
+              </button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function selectCustomFont(fontId) {
+      const font = getCustomFontById(fontId);
+      if (!font) {
+        setStatus("没有找到这个本地字体。");
+        return;
+      }
+
+      const loaded = await registerFont(font);
+      if (!loaded) {
+        setStatus("字体加载失败，暂时无法应用。");
+        return;
+      }
+
+      displaySettings.fontMode = "custom";
+      displaySettings.customFontId = font.id;
+      applyDisplaySettings();
+      await persistDisplaySettings("font-select");
+      setStatus("本地字体已应用。");
+    }
+
+    async function deleteCustomFont(fontId) {
+      const font = getCustomFontById(fontId);
+      if (!font) {
+        return;
+      }
+
+      if (!window.confirm(`确定删除字体“${font.name}”吗？`)) {
+        return;
+      }
+
+      customFonts = await storage.deleteFont(fontId);
+
+      if (displaySettings.fontMode === "custom" && displaySettings.customFontId === fontId) {
+        displaySettings.fontMode = "builtin";
+        displaySettings.font = "serif";
+        displaySettings.customFontId = "";
+        await persistDisplaySettings("font-delete");
+      }
+
+      applyDisplaySettings();
+      setStatus("本地字体已删除。");
+    }
+
+    function showSettingsView(viewName) {
+      elements.settingsViews.forEach((view) => {
+        view.classList.toggle("hidden", view.dataset.settingsView !== viewName);
+      });
+
+      if (viewName === "library") {
+        resetNoteForm();
+        renderLibrary();
+      }
+
+      if (viewName === "style") {
+        updateStyleButtons();
+        updateStylePreview();
+        renderCustomFonts();
+      }
+
+      if (viewName === "records") {
+        renderReadingRecords();
+      }
+
+      if (viewName === "home") {
+        updateSyncStatus();
+      }
+
+      setStatus("");
+    }
+
+    function openSettings() {
+      updateNoteCounts();
+      showSettingsView("home");
+      document.body.classList.add("settings-open");
+      elements.settingsButton.setAttribute("aria-expanded", "true");
+      elements.settingsPanel.setAttribute("aria-hidden", "false");
+      elements.settingsCloseButton.focus();
+    }
+
+    function closeSettings() {
+      document.body.classList.remove("settings-open");
+      elements.settingsButton.setAttribute("aria-expanded", "false");
+      elements.settingsPanel.setAttribute("aria-hidden", "true");
+    }
+
+    function showImportView(message = "") {
+      elements.reviewView.classList.add("hidden");
+      closeSettings();
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      elements.importView.classList.remove("hidden");
+      updateNoteCounts();
+      setStatus(message);
+      elements.csvInput.value = "";
+    }
+
+    function showReviewView() {
+      elements.importView.classList.add("hidden");
+      elements.reviewView.classList.remove("hidden");
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      updateNoteCounts();
+      closeSettings();
+      showRandomNote("initial");
+    }
+
+    function displayNoteAt(index, animation = "random") {
+      const note = notes[index];
+      if (!note) {
+        return;
+      }
+
+      currentIndex = index;
+      const source = note.author ? `《${note.book}》${note.author}` : `《${note.book}》`;
+
+      elements.noteText.textContent = note.content;
+      elements.noteSource.textContent = `—— ${source}`;
+
+      if (animation) {
+        elements.quoteWrap.classList.remove("quote-swap", "quote-swap-next", "quote-swap-previous");
+        void elements.quoteWrap.offsetWidth;
+        const animationClass = animation === "next" ? "quote-swap-next" : animation === "previous" ? "quote-swap-previous" : "quote-swap";
+        elements.quoteWrap.classList.add(animationClass);
+      }
+    }
+
+    function getRandomIndex() {
+      if (notes.length <= 1) {
+        return 0;
+      }
+
+      let nextIndex = currentIndex;
+      while (nextIndex === currentIndex) {
+        nextIndex = Math.floor(Math.random() * notes.length);
+      }
+      return nextIndex;
+    }
+
+    async function switchToNote(index, source = "random", animation = "random") {
+      if (!notes.length) {
+        await commitReadingSession("empty");
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      const boundedIndex = (index + notes.length) % notes.length;
+      await commitReadingSession("switch");
+      displayNoteAt(boundedIndex, animation);
+      startReadingSession(notes[boundedIndex].id, source);
+      updateNoteCounts();
+    }
+
+    function showRandomNote(source = "random") {
+      if (!notes.length) {
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      switchToNote(getRandomIndex(), source, "random");
+    }
+
+    function showNextNote(source = "next") {
+      if (!notes.length) {
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      const nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+      switchToNote(nextIndex, source, "next");
+    }
+
+    function showPreviousNote(source = "previous") {
+      if (!notes.length) {
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      const previousIndex = currentIndex < 0 ? notes.length - 1 : currentIndex - 1;
+      switchToNote(previousIndex, source, "previous");
+    }
+
+    function parseCsvFile(file) {
+      if (!file) {
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setStatus("请选择 .csv 文件。");
+        return;
+      }
+
+      setStatus("正在解析 CSV...");
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: "greedy",
+        transformHeader: (header) => cleanText(header),
+        complete: async (result) => {
+          if (result.errors.length) {
+            setStatus("CSV 解析时遇到格式问题，请检查文件后再试。");
+            return;
+          }
+
+          const extracted = result.data.map(normalizeRow).filter(Boolean);
+
+          if (!extracted.length) {
+            setStatus("没有找到有效的“笔记内容”列数据。");
+            return;
+          }
+
+          try {
+            await commitReadingSession("reimport");
+            await persistNotes(extracted, "csv-import");
+            currentIndex = -1;
+            setStatus("");
+            showReviewView();
+          } catch {
+            setStatus("保存失败，请确认同步服务可用后重试。");
+          }
+        },
+        error: () => {
+          setStatus("读取文件失败，请重新选择 CSV 文件。");
+        }
+      });
+    }
+
+    function resetNoteForm() {
+      editingNoteId = null;
+      elements.libraryFormTitle.textContent = "新增句子";
+      elements.saveNoteButton.textContent = "保存句子";
+      elements.cancelEditButton.classList.add("hidden");
+      elements.noteForm.reset();
+    }
+
+    function findNoteIndexById(noteId) {
+      return notes.findIndex((note) => note.id === noteId);
+    }
+
+    function fillNoteForm(noteId) {
+      const note = notes.find((item) => item.id === noteId);
+      if (!note) {
+        return;
+      }
+
+      editingNoteId = noteId;
+      elements.libraryFormTitle.textContent = "编辑句子";
+      elements.saveNoteButton.textContent = "更新句子";
+      elements.cancelEditButton.classList.remove("hidden");
+      elements.noteContentInput.value = note.content;
+      elements.noteBookInput.value = note.book === "未知书名" ? "" : note.book;
+      elements.noteAuthorInput.value = note.author;
+      elements.noteContentInput.focus();
+    }
+
+    function renderLibrary() {
+      updateNoteCounts();
+
+      if (!notes.length) {
+        elements.libraryList.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+            句子库还是空的，可以先新增一句，或重新导入 CSV。
+          </div>
+        `;
+        return;
+      }
+
+      elements.libraryList.innerHTML = notes.map((note) => {
+        const source = note.author ? `《${note.book}》${note.author}` : `《${note.book}》`;
+        const stats = readingStats.byNote.get(note.id);
+        const viewCount = stats?.viewCount || 0;
+        const duration = stats?.totalDurationMs ? formatDuration(stats.totalDurationMs) : "0秒";
+        const lastViewed = stats?.lastViewedAt ? formatDateTime(stats.lastViewedAt) : "尚未浏览";
+        return `
+          <article class="rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4 transition hover:border-sage/25">
+            <p class="note-preview text-sm leading-7 text-ink">${escapeHtml(note.content)}</p>
+            <p class="mt-2 text-xs leading-5 text-muted">${escapeHtml(source)}</p>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted">
+              <span class="rounded-full bg-surface px-3 py-2 text-center">${viewCount} 次</span>
+              <span class="rounded-full bg-surface px-3 py-2 text-center">${duration}</span>
+              <span class="rounded-full bg-surface px-3 py-2 text-center">${escapeHtml(lastViewed)}</span>
+            </div>
+            <details class="mt-3 rounded-[14px] bg-surface px-3 py-2 text-sm leading-7 text-muted">
+              <summary class="cursor-pointer text-sage">详情</summary>
+              <p class="mt-2 whitespace-pre-wrap text-ink">${escapeHtml(note.content)}</p>
+              <p class="mt-2 text-xs text-muted">累计停留 ${duration}，浏览 ${viewCount} 次，最近 ${escapeHtml(lastViewed)}</p>
+            </details>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" data-note-action="edit" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">编辑</button>
+              <button type="button" data-note-action="delete" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-clay/25 px-4 py-2 text-sm text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderReadingRecords() {
+      updateReadingStats();
+
+      elements.recordsSummaryGrid.innerHTML = [
+        ["今日时长", formatShortDuration(readingStats.todayDurationMs)],
+        ["今日浏览", `${readingStats.todayViews} 次`],
+        ["今日句子", `${readingStats.todayUniqueNotes} 条`],
+        ["累计时长", formatShortDuration(readingStats.totalDurationMs)]
+      ].map(([label, value]) => `
+        <div class="rounded-[18px] border border-sage/15 bg-sage/5 px-4 py-4">
+          <p class="text-xs leading-5 text-muted">${label}</p>
+          <p class="mt-1 text-xl font-semibold text-ink">${value}</p>
+        </div>
+      `).join("");
+
+      elements.recordsCountText.textContent = `${readingStats.sortedNotes.length} 条`;
+      elements.recordsUpdatedText.textContent = readingEvents.length ? "实时统计" : "暂无记录";
+
+      if (!readingStats.sortedNotes.length) {
+        elements.recordsList.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+            还没有阅读记录。开始回顾几条句子后，这里会显示停留时间。
+          </div>
+        `;
+        return;
+      }
+
+      elements.recordsList.innerHTML = readingStats.sortedNotes.map((item, index) => {
+        const note = notes.find((candidate) => candidate.id === item.noteId);
+        const content = note?.content || "这条句子已被删除";
+        const source = getNoteSource(note);
+        const recentEvents = item.events.slice(0, 5).map((event) => `
+          <li class="flex items-center justify-between gap-3 rounded-[12px] bg-surface px-3 py-2">
+            <span>${formatDateTime(event.endedAt)}</span>
+            <span class="text-ink">${formatDuration(event.durationMs)}</span>
+          </li>
+        `).join("");
+
+        return `
+          <details class="rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4">
+            <summary class="cursor-pointer list-none">
+              <div class="flex items-start gap-3">
+                <span class="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sage/10 text-sm font-semibold text-sage">${index + 1}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="note-preview text-sm leading-7 text-ink">${escapeHtml(content)}</span>
+                  <span class="mt-1 block text-xs leading-5 text-muted">${escapeHtml(source)}</span>
+                  <span class="mt-2 grid grid-cols-3 gap-2 text-xs text-muted">
+                    <span class="rounded-full bg-surface px-2 py-1 text-center">${item.viewCount} 次</span>
+                    <span class="rounded-full bg-surface px-2 py-1 text-center">${formatDuration(item.totalDurationMs)}</span>
+                    <span class="rounded-full bg-surface px-2 py-1 text-center">${escapeHtml(formatDateTime(item.lastViewedAt))}</span>
+                  </span>
+                </span>
+              </div>
+            </summary>
+            <ul class="mt-3 space-y-2 text-xs leading-5 text-muted">
+              ${recentEvents}
+            </ul>
+          </details>
+        `;
+      }).join("");
+    }
+
+    async function refreshAfterLibraryChange(message) {
+      updateNoteCounts();
+      renderLibrary();
+
+      if (!notes.length) {
+        currentIndex = -1;
+        showImportView(message);
+        return;
+      }
+
+      if (currentIndex < 0 || currentIndex >= notes.length) {
+        currentIndex = 0;
+      }
+
+      displayNoteAt(currentIndex, false);
+      setStatus(message);
+    }
+
+    async function handleNoteFormSubmit(event) {
+      event.preventDefault();
+
+      const existingNote = editingNoteId ? notes.find((note) => note.id === editingNoteId) : null;
+      const note = createNote({
+        id: existingNote?.id,
+        content: elements.noteContentInput.value,
+        book: elements.noteBookInput.value,
+        author: elements.noteAuthorInput.value,
+        chapter: existingNote?.chapter,
+        remark: existingNote?.remark,
+        createdAt: existingNote?.createdAt,
+        updatedAt: nowIso()
+      });
+
+      if (!note) {
+        setStatus("笔记内容不能为空。");
+        elements.noteContentInput.focus();
+        return;
+      }
+
+      if (!editingNoteId) {
+        notes.push(note);
+        await persistNotes(notes, "note-create");
+        if (currentIndex < 0) {
+          currentIndex = findNoteIndexById(note.id);
+        }
+        resetNoteForm();
+        await refreshAfterLibraryChange("已新增句子。");
+        return;
+      }
+
+      const updatedIndex = findNoteIndexById(editingNoteId);
+      if (updatedIndex >= 0) {
+        notes[updatedIndex] = note;
+        await persistNotes(notes, "note-edit");
+      }
+
+      resetNoteForm();
+      await refreshAfterLibraryChange("已更新句子。");
+    }
+
+    async function deleteNote(noteId) {
+      const note = notes.find((item) => item.id === noteId);
+      if (!note) {
+        return;
+      }
+
+      if (!window.confirm("确定删除这条句子吗？")) {
+        return;
+      }
+
+      const deletedIndex = findNoteIndexById(noteId);
+      const deletedCurrent = deletedIndex === currentIndex;
+      if (deletedCurrent) {
+        await commitReadingSession("delete-current");
+      }
+      notes = await storage.deleteNote(noteId);
+
+      if (!notes.length) {
+        resetNoteForm();
+        await refreshAfterLibraryChange("句子库已清空，可以重新导入。");
+        return;
+      }
+
+      if (deletedIndex < currentIndex) {
+        currentIndex -= 1;
+      }
+
+      if (deletedCurrent) {
+        currentIndex = Math.min(deletedIndex, notes.length - 1);
+      }
+
+      resetNoteForm();
+      await refreshAfterLibraryChange("已删除句子。");
+      if (deletedCurrent && notes[currentIndex]) {
+        startReadingSession(notes[currentIndex].id, "after-delete");
+      }
+    }
+
+    async function clearNotes() {
+      if (notes.length && !window.confirm("确定清空句子库吗？主题和字体设置会保留。")) {
+        return;
+      }
+
+      await commitReadingSession("clear-notes");
+      notes = await storage.clearNotes("clear-notes");
+      currentIndex = -1;
+      resetNoteForm();
+      updateSyncStatus();
+      showImportView("句子库已清空，可以重新导入。");
+    }
+
+    function handlePointerDown(event) {
+      if (isSettingsOpen() || !notes.length || event.pointerType === "mouse") {
+        return;
+      }
+
+      swipeStart = {
+        x: event.clientX,
+        y: event.clientY,
+        pointerId: event.pointerId
+      };
+    }
+
+    function handlePointerUp(event) {
+      if (!swipeStart || swipeStart.pointerId !== event.pointerId || isSettingsOpen()) {
+        swipeStart = null;
+        return;
+      }
+
+      const deltaX = event.clientX - swipeStart.x;
+      const deltaY = event.clientY - swipeStart.y;
+      swipeStart = null;
+
+      if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) {
+        return;
+      }
+
+      if (deltaX < 0) {
+        showPreviousNote("swipe-previous");
+      } else {
+        showNextNote("swipe-next");
+      }
+    }
+
+    function handlePointerCancel() {
+      swipeStart = null;
+    }
+
+    elements.csvInput.addEventListener("change", (event) => {
+      parseCsvFile(event.target.files[0]);
+    });
+
+    elements.fontInput.addEventListener("change", (event) => {
+      importFontFile(event.target.files[0]);
+    });
+
+    elements.previousButton.addEventListener("click", () => showPreviousNote("previous"));
+    elements.randomButton.addEventListener("click", () => showRandomNote("random"));
+    elements.nextButton.addEventListener("click", () => showNextNote("next"));
+
+    elements.settingsButton.addEventListener("click", () => {
+      if (isSettingsOpen()) {
+        closeSettings();
+        return;
+      }
+
+      openSettings();
+    });
+
+    elements.settingsBackdrop.addEventListener("click", closeSettings);
+    elements.settingsCloseButton.addEventListener("click", closeSettings);
+    elements.openLibraryButton.addEventListener("click", () => showSettingsView("library"));
+    elements.openStyleButton.addEventListener("click", () => showSettingsView("style"));
+    elements.openRecordsButton.addEventListener("click", () => showSettingsView("records"));
+
+    elements.reimportButton.addEventListener("click", () => {
+      setStatus("请选择新的 CSV 文件。");
+      elements.csvInput.value = "";
+      elements.csvInput.click();
+    });
+
+    elements.clearDataButton.addEventListener("click", () => {
+      clearNotes();
+    });
+
+    elements.syncRefreshButton.addEventListener("click", () => {
+      refreshFromRemote().catch(() => {
+        updateSyncStatus("同步服务暂时不可用，请确认电脑端服务仍在运行。");
+      });
+    });
+
+    elements.syncImportLocalButton.addEventListener("click", () => {
+      importLocalDataToSync().catch(() => {
+        updateSyncStatus("导入失败，请确认同步服务仍在运行。");
+      });
+    });
+
+    elements.readingCard.addEventListener("pointerdown", handlePointerDown);
+    elements.readingCard.addEventListener("pointerup", handlePointerUp);
+    elements.readingCard.addEventListener("pointercancel", handlePointerCancel);
+
+    elements.fontImportButton.addEventListener("click", () => {
+      elements.fontInput.value = "";
+      elements.fontInput.click();
+    });
+
+    elements.noteForm.addEventListener("submit", handleNoteFormSubmit);
+    elements.cancelEditButton.addEventListener("click", () => {
+      resetNoteForm();
+      setStatus("");
+    });
+
+    elements.libraryList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-note-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const noteId = actionButton.dataset.noteId;
+      if (actionButton.dataset.noteAction === "edit") {
+        fillNoteForm(noteId);
+      }
+
+      if (actionButton.dataset.noteAction === "delete") {
+        deleteNote(noteId);
+      }
+    });
+
+    elements.customFontList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-font-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const fontId = actionButton.dataset.fontId;
+      if (actionButton.dataset.fontAction === "select") {
+        selectCustomFont(fontId);
+      }
+
+      if (actionButton.dataset.fontAction === "delete") {
+        deleteCustomFont(fontId);
+      }
+    });
+
+    elements.settingsPanel.addEventListener("click", (event) => {
+      if (event.target.closest("[data-settings-back]")) {
+        showSettingsView("home");
+      }
+    });
+
+    elements.styleChoices.forEach((button) => {
+      button.addEventListener("click", () => {
+        setDisplaySetting(button.dataset.styleGroup, button.dataset.styleValue);
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isSettingsOpen()) {
+        closeSettings();
+        elements.settingsButton.focus();
+        return;
+      }
+
+      const interactiveTags = ["BUTTON", "INPUT", "SELECT", "TEXTAREA", "A", "SUMMARY"];
+      const isInteractiveTarget = interactiveTags.includes(event.target.tagName);
+      if (event.key === " " && !isSettingsOpen() && !isInteractiveTarget && !elements.reviewView.classList.contains("hidden")) {
+        event.preventDefault();
+        showRandomNote();
+      }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        commitReadingSession("hidden");
+        return;
+      }
+
+      if (document.visibilityState === "visible") {
+        if (storage.mode === "lan") {
+          refreshFromRemote("已检查同步数据").catch(() => updateSyncStatus("同步服务暂时不可用。"));
+          return;
+        }
+
+        if (currentIndex >= 0 && notes[currentIndex]) {
+          startReadingSession(notes[currentIndex].id, "resume");
+        }
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      commitReadingSession("unload");
+    });
+
+    async function initApp() {
+      try {
+        setStatus(storage.mode === "lan" ? "正在连接同步主库..." : "正在准备本地数据库...");
+        db = await openDatabase();
+        await migrateLegacyData();
+
+        let state;
+        try {
+          state = await storage.loadAll();
+        } catch (error) {
+          if (storage.mode === "lan") {
+            showImportView("同步服务暂时不可用，请确认电脑端服务仍在运行。");
+            updateSyncStatus("同步服务暂时不可用。");
+            return;
+          }
+          throw error;
+        }
+
+        notes = state.notes;
+        readingEvents = state.readingEvents;
+        customFonts = state.fonts;
+        displaySettings = state.settings;
+        await registerFonts(customFonts);
+        updateReadingStats();
+        await updateMigrationPrompt(state);
+        updateSyncStatus();
+
+        if (displaySettings.fontMode === "custom" && !registeredFonts.has(displaySettings.customFontId)) {
+          displaySettings.fontMode = "builtin";
+          displaySettings.customFontId = "";
+          await persistDisplaySettings("font-fallback");
+        }
+
+        applyDisplaySettings();
+
+        if (notes.length) {
+          showReviewView();
+        } else {
+          showImportView("");
+        }
+      } catch (error) {
+        console.error(error);
+        showImportView("本地数据库初始化失败，请刷新页面后重试。");
+      }
+    }
+
+    initApp();
+  </script>
+</body>
+</html>

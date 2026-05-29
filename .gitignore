@@ -1,0 +1,17 @@
+# Local sync data and backups
+sync-data.json
+sync-data.json.tmp
+sync-data.json.broken-*
+*.broken-*
+
+# Temporary verification files
+_verify-*
+_edge-verify-profile/
+.superpowers/
+_git/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
