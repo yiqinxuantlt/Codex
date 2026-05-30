@@ -159,14 +159,6 @@
       animation: cardFlipPrevious 420ms cubic-bezier(0.2, 0.74, 0.22, 1) both;
     }
 
-    .card-turn-next {
-      animation: cardTurnNext 460ms cubic-bezier(0.18, 0.82, 0.28, 1) both;
-    }
-
-    .card-turn-previous {
-      animation: cardTurnPrevious 460ms cubic-bezier(0.18, 0.82, 0.28, 1) both;
-    }
-
     #noteText {
       font-family: var(--note-font-family);
       font-size: var(--note-font-size-base);
@@ -226,8 +218,6 @@
       overflow: hidden;
       perspective: 1100px;
       touch-action: pan-y;
-      transform-style: preserve-3d;
-      will-change: transform, box-shadow;
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -276,10 +266,10 @@
     @keyframes cardFlipNext {
       from {
         opacity: 0;
-        transform: translateX(22px) rotateY(-8deg) scale(0.988);
-        filter: blur(0.8px);
+        transform: translateX(18px) rotateY(-5deg) scale(0.992);
+        filter: blur(0.45px);
       }
-      58% {
+      64% {
         opacity: 1;
       }
       to {
@@ -292,42 +282,16 @@
     @keyframes cardFlipPrevious {
       from {
         opacity: 0;
-        transform: translateX(-22px) rotateY(8deg) scale(0.988);
-        filter: blur(0.8px);
+        transform: translateX(-18px) rotateY(5deg) scale(0.992);
+        filter: blur(0.45px);
       }
-      58% {
+      64% {
         opacity: 1;
       }
       to {
         opacity: 1;
         transform: translateX(0) rotateY(0) scale(1);
         filter: blur(0);
-      }
-    }
-
-    @keyframes cardTurnNext {
-      0% {
-        transform: translateX(0) rotateY(0) scale(1);
-      }
-      42% {
-        transform: translateX(-7px) rotateY(2.4deg) scale(0.992);
-        box-shadow: 0 22px 58px rgba(62, 51, 37, 0.12), 0 4px 12px rgba(62, 51, 37, 0.07);
-      }
-      100% {
-        transform: translateX(0) rotateY(0) scale(1);
-      }
-    }
-
-    @keyframes cardTurnPrevious {
-      0% {
-        transform: translateX(0) rotateY(0) scale(1);
-      }
-      42% {
-        transform: translateX(7px) rotateY(-2.4deg) scale(0.992);
-        box-shadow: 0 22px 58px rgba(62, 51, 37, 0.12), 0 4px 12px rgba(62, 51, 37, 0.07);
-      }
-      100% {
-        transform: translateX(0) rotateY(0) scale(1);
       }
     }
 
@@ -341,9 +305,7 @@
       }
 
       .quote-swap-next,
-      .quote-swap-previous,
-      .card-turn-next,
-      .card-turn-previous {
+      .quote-swap-previous {
         animation-name: quoteSwap !important;
       }
     }
@@ -2150,9 +2112,7 @@
         if (isDirectionalAnimation) {
           isAnimatingCard = true;
         }
-        elements.readingCard.classList.remove("card-turn-next", "card-turn-previous");
         elements.quoteWrap.classList.remove("quote-swap", "quote-swap-next", "quote-swap-previous");
-        void elements.readingCard.offsetWidth;
         void elements.quoteWrap.offsetWidth;
         const animationClass = animation === "next"
           ? "quote-swap-next"
@@ -2160,13 +2120,9 @@
             ? "quote-swap-previous"
             : "quote-swap";
         elements.quoteWrap.classList.add(animationClass);
-        if (isDirectionalAnimation) {
-          elements.readingCard.classList.add(animation === "next" ? "card-turn-next" : "card-turn-previous");
-        }
         window.setTimeout(() => {
           isAnimatingCard = false;
-          elements.readingCard.classList.remove("card-turn-next", "card-turn-previous");
-        }, isDirectionalAnimation ? 480 : 360);
+        }, isDirectionalAnimation ? 430 : 360);
       }
     }
 
@@ -2680,6 +2636,18 @@
       endSwipe(event, "touch");
     }
 
+    function cancelPointerSwipe() {
+      if (swipeStart?.inputType === "pointer") {
+        resetSwipe();
+      }
+    }
+
+    function cancelTouchSwipe() {
+      if (swipeStart?.inputType === "touch") {
+        resetSwipe();
+      }
+    }
+
     elements.csvInput.addEventListener("change", (event) => {
       parseCsvFile(event.target.files[0]);
     });
@@ -2729,17 +2697,17 @@
       });
     });
 
-    if (window.PointerEvent) {
+    if (window.PointerEvent && !HAS_TOUCH_INPUT) {
       elements.readingCard.addEventListener("pointerdown", beginPointerSwipe);
       elements.readingCard.addEventListener("pointermove", movePointerSwipe);
       elements.readingCard.addEventListener("pointerup", endPointerSwipe);
-      elements.readingCard.addEventListener("pointercancel", resetSwipe);
+      elements.readingCard.addEventListener("pointercancel", cancelPointerSwipe);
     }
 
     elements.readingCard.addEventListener("touchstart", beginTouchSwipe, { passive: true });
     elements.readingCard.addEventListener("touchmove", moveTouchSwipe, { passive: false });
     elements.readingCard.addEventListener("touchend", endTouchSwipe, { passive: true });
-    elements.readingCard.addEventListener("touchcancel", resetSwipe, { passive: true });
+    elements.readingCard.addEventListener("touchcancel", cancelTouchSwipe, { passive: true });
 
     elements.fontImportButton.addEventListener("click", () => {
       elements.fontInput.value = "";
