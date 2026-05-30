@@ -8,6 +8,7 @@ sync-data.json.broken-*
 _verify-*
 _edge-verify-profile/
 _edge-*-profile/
+_edge-swipe-test/
 .superpowers/
 _git/
 
