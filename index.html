@@ -152,11 +152,11 @@
     }
 
     .quote-swap-next {
-      animation: quoteNext 320ms ease both;
+      animation: cardFlipNext 420ms cubic-bezier(0.2, 0.74, 0.22, 1) both;
     }
 
     .quote-swap-previous {
-      animation: quotePrevious 320ms ease both;
+      animation: cardFlipPrevious 420ms cubic-bezier(0.2, 0.74, 0.22, 1) both;
     }
 
     #noteText {
@@ -214,8 +214,20 @@
       min-height: min(72dvh, 720px);
     }
 
+    #readingCard {
+      overflow: hidden;
+      perspective: 1100px;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     #quoteWrap {
       scrollbar-width: thin;
+      transform-origin: center;
+      transform-style: preserve-3d;
+      will-change: transform, opacity, filter;
     }
 
     #reviewControls {
@@ -249,25 +261,35 @@
       }
     }
 
-    @keyframes quoteNext {
+    @keyframes cardFlipNext {
       from {
         opacity: 0;
-        transform: translateX(26px);
+        transform: translateX(34px) rotateY(-10deg) scale(0.985);
+        filter: blur(1.2px);
+      }
+      58% {
+        opacity: 1;
       }
       to {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateX(0) rotateY(0) scale(1);
+        filter: blur(0);
       }
     }
 
-    @keyframes quotePrevious {
+    @keyframes cardFlipPrevious {
       from {
         opacity: 0;
-        transform: translateX(-26px);
+        transform: translateX(-34px) rotateY(10deg) scale(0.985);
+        filter: blur(1.2px);
+      }
+      58% {
+        opacity: 1;
       }
       to {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateX(0) rotateY(0) scale(1);
+        filter: blur(0);
       }
     }
 
@@ -278,6 +300,11 @@
         animation-duration: 1ms !important;
         scroll-behavior: auto !important;
         transition-duration: 1ms !important;
+      }
+
+      .quote-swap-next,
+      .quote-swap-previous {
+        animation-name: quoteSwap !important;
       }
     }
 
@@ -995,6 +1022,9 @@
     let displaySettings = { ...DEFAULT_DISPLAY_SETTINGS };
     let readingSession = null;
     let swipeStart = null;
+    let isAnimatingCard = false;
+    const SWIPE_TRIGGER_PX = 52;
+    const SWIPE_AXIS_RATIO = 1.25;
 
     function cleanText(value) {
       return String(value ?? "").replace(/\uFEFF/g, "").trim();
@@ -2075,10 +2105,21 @@
       elements.noteSource.textContent = `—— ${source}`;
 
       if (animation) {
+        const isDirectionalAnimation = animation === "next" || animation === "previous";
+        if (isDirectionalAnimation) {
+          isAnimatingCard = true;
+        }
         elements.quoteWrap.classList.remove("quote-swap", "quote-swap-next", "quote-swap-previous");
         void elements.quoteWrap.offsetWidth;
-        const animationClass = animation === "next" ? "quote-swap-next" : animation === "previous" ? "quote-swap-previous" : "quote-swap";
+        const animationClass = animation === "next"
+          ? "quote-swap-next"
+          : animation === "previous"
+            ? "quote-swap-previous"
+            : "quote-swap";
         elements.quoteWrap.classList.add(animationClass);
+        window.setTimeout(() => {
+          isAnimatingCard = false;
+        }, isDirectionalAnimation ? 450 : 360);
       }
     }
 
@@ -2095,6 +2136,10 @@
     }
 
     async function switchToNote(index, source = "random", animation = "random") {
+      if (isAnimatingCard) {
+        return;
+      }
+
       if (!notes.length) {
         await commitReadingSession("empty");
         showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
@@ -2424,29 +2469,80 @@
       showImportView("句子库已清空，可以重新导入。");
     }
 
-    function handlePointerDown(event) {
-      if (isSettingsOpen() || !notes.length || event.pointerType === "mouse") {
-        return;
-      }
-
-      swipeStart = {
-        x: event.clientX,
-        y: event.clientY,
-        pointerId: event.pointerId
+    function getGesturePoint(event) {
+      const point = event.changedTouches?.[0] || event.touches?.[0] || event;
+      return {
+        x: point.clientX,
+        y: point.clientY
       };
     }
 
-    function handlePointerUp(event) {
-      if (!swipeStart || swipeStart.pointerId !== event.pointerId || isSettingsOpen()) {
-        swipeStart = null;
+    function canStartSwipe(event) {
+      const isInteractiveElement = event.target?.closest?.("button, input, textarea, select, a, summary");
+      return !isSettingsOpen() && notes.length && !isAnimatingCard && !isInteractiveElement;
+    }
+
+    function resetSwipe() {
+      swipeStart = null;
+    }
+
+    function beginSwipe(event) {
+      if (!canStartSwipe(event) || event.pointerType === "mouse") {
         return;
       }
 
-      const deltaX = event.clientX - swipeStart.x;
-      const deltaY = event.clientY - swipeStart.y;
-      swipeStart = null;
+      const point = getGesturePoint(event);
+      swipeStart = {
+        x: point.x,
+        y: point.y,
+        currentX: point.x,
+        currentY: point.y,
+        pointerId: event.pointerId,
+        horizontal: false
+      };
 
-      if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) {
+      if (event.pointerId !== undefined) {
+        try {
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+        } catch {
+          // Some mobile browsers expose Pointer Events without capture support.
+        }
+      }
+    }
+
+    function moveSwipe(event) {
+      if (!swipeStart || (event.pointerId !== undefined && swipeStart.pointerId !== event.pointerId)) {
+        return;
+      }
+
+      const point = getGesturePoint(event);
+      swipeStart.currentX = point.x;
+      swipeStart.currentY = point.y;
+
+      const deltaX = point.x - swipeStart.x;
+      const deltaY = point.y - swipeStart.y;
+      if (!swipeStart.horizontal && Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * SWIPE_AXIS_RATIO) {
+        swipeStart.horizontal = true;
+      }
+
+      if (swipeStart.horizontal && event.cancelable) {
+        event.preventDefault();
+      }
+    }
+
+    function endSwipe(event) {
+      if (!swipeStart || (event.pointerId !== undefined && swipeStart.pointerId !== event.pointerId)) {
+        resetSwipe();
+        return;
+      }
+
+      const point = getGesturePoint(event);
+      const deltaX = point.x - swipeStart.x;
+      const deltaY = point.y - swipeStart.y;
+      const isHorizontalSwipe = Math.abs(deltaX) >= SWIPE_TRIGGER_PX && Math.abs(deltaX) > Math.abs(deltaY) * SWIPE_AXIS_RATIO;
+      resetSwipe();
+
+      if (!isHorizontalSwipe) {
         return;
       }
 
@@ -2455,10 +2551,6 @@
       } else {
         showNextNote("swipe-next");
       }
-    }
-
-    function handlePointerCancel() {
-      swipeStart = null;
     }
 
     elements.csvInput.addEventListener("change", (event) => {
@@ -2510,9 +2602,17 @@
       });
     });
 
-    elements.readingCard.addEventListener("pointerdown", handlePointerDown);
-    elements.readingCard.addEventListener("pointerup", handlePointerUp);
-    elements.readingCard.addEventListener("pointercancel", handlePointerCancel);
+    if (window.PointerEvent) {
+      elements.readingCard.addEventListener("pointerdown", beginSwipe);
+      elements.readingCard.addEventListener("pointermove", moveSwipe);
+      elements.readingCard.addEventListener("pointerup", endSwipe);
+      elements.readingCard.addEventListener("pointercancel", resetSwipe);
+    } else {
+      elements.readingCard.addEventListener("touchstart", beginSwipe, { passive: true });
+      elements.readingCard.addEventListener("touchmove", moveSwipe, { passive: false });
+      elements.readingCard.addEventListener("touchend", endSwipe, { passive: true });
+      elements.readingCard.addEventListener("touchcancel", resetSwipe, { passive: true });
+    }
 
     elements.fontImportButton.addEventListener("click", () => {
       elements.fontInput.value = "";
