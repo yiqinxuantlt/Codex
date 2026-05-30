@@ -7,6 +7,7 @@ sync-data.json.broken-*
 # Temporary verification files
 _verify-*
 _edge-verify-profile/
+_edge-*-profile/
 .superpowers/
 _git/
 
