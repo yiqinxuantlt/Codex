@@ -1,0 +1,21 @@
+{
+  "name": "reading-note-reviewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A calm reading-note reviewer packaged as a web app and Android app.",
+  "scripts": {
+    "android:build": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
+    "cap:add:android": "npm run prepare:android && cap add android",
+    "cap:copy": "npm run prepare:android && cap copy android",
+    "cap:sync": "npm run prepare:android && cap sync android",
+    "prepare:android": "node tools/prepare-capacitor-web.js",
+    "verify": "node tools/verify-app.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.3.4",
+    "@capacitor/core": "8.3.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.3.4"
+  }
+}

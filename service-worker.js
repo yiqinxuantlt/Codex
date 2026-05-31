@@ -8,35 +8,21 @@ const APP_SHELL = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/maskable-512.png",
-  "./icons/apple-touch-icon.png"
-];
-
-const CDN_RESOURCES = [
-  "https://cdn.tailwindcss.com",
-  "https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"
+  "./icons/apple-touch-icon.png",
+  "./vendor/tailwindcss-cdn.js",
+  "./vendor/papaparse.min.js"
 ];
 
 async function cacheExternalResources() {
-  const cache = await caches.open(RUNTIME_CACHE);
-  await Promise.all(
-    CDN_RESOURCES.map(async (url) => {
-      try {
-        const request = new Request(url, { mode: "no-cors" });
-        const response = await fetch(request);
-        await cache.put(request, response);
-      } catch {
-        // The app still works online if optional CDN precaching is unavailable.
-      }
-    })
-  );
+  return Promise.resolve();
 }
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    Promise.all([
-      caches.open(APP_CACHE).then((cache) => cache.addAll(APP_SHELL)),
-      cacheExternalResources()
-    ]).then(() => self.skipWaiting())
+    caches.open(APP_CACHE)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => cacheExternalResources())
+      .then(() => self.skipWaiting())
   );
 });
 

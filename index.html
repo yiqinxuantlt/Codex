@@ -12,8 +12,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="./vendor/tailwindcss-cdn.js"></script>
+  <script src="./vendor/papaparse.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -687,6 +687,16 @@
           <h3 class="mt-2 text-base font-semibold text-ink">同步状态</h3>
           <p id="syncStatusText" class="mt-2 text-sm leading-6 text-muted">当前为本地模式</p>
           <p id="syncAddressText" class="mt-1 break-all text-xs leading-5 text-muted"></p>
+          <label class="mt-3 block">
+            <span class="text-xs leading-5 text-muted">电脑端同步地址</span>
+            <input
+              id="syncAddressInput"
+              type="url"
+              inputmode="url"
+              class="mt-1 w-full rounded-[14px] border border-borderSoft/10 bg-surface px-3 py-2 text-sm text-ink outline-none transition focus:border-sage/45 focus:ring-4 focus:ring-sage/15"
+              placeholder="例如 http://192.168.1.8:8787"
+            />
+          </label>
           <div class="mt-3 flex flex-wrap gap-2">
             <button
               id="syncRefreshButton"
@@ -701,6 +711,20 @@
               class="hidden rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20"
             >
               导入本机数据
+            </button>
+            <button
+              id="syncSaveAddressButton"
+              type="button"
+              class="rounded-full border border-sage/25 bg-surface px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15"
+            >
+              保存同步地址
+            </button>
+            <button
+              id="syncClearAddressButton"
+              type="button"
+              class="hidden rounded-full border border-borderSoft/10 bg-surface px-4 py-2 text-sm text-muted transition hover:border-clay/30 hover:text-clay focus:outline-none focus:ring-4 focus:ring-clay/15"
+            >
+              清除地址
             </button>
           </div>
         </section>
@@ -967,6 +991,7 @@
     const MIGRATION_KEY = "legacy-localstorage-v1-migrated";
     const LEGACY_NOTES_KEY = "reading-note-reviewer.notes.v1";
     const LEGACY_STYLE_KEY = "reading-note-reviewer.display.v1";
+    const CUSTOM_SYNC_ORIGIN_KEY = "reading-note-reviewer.sync-origin.v1";
 
     function isLanSyncHost(hostname) {
       const host = hostname.replace(/^\[|\]$/g, "");
@@ -986,8 +1011,28 @@
       );
     }
 
-    const LAN_MODE = window.location.protocol === "http:" && isLanSyncHost(window.location.hostname);
-    const SYNC_API_BASE = LAN_MODE ? `${window.location.origin}/api` : "";
+    function normalizeSyncOrigin(value) {
+      const raw = cleanText(value).replace(/\/+$/g, "");
+      if (!raw) {
+        return "";
+      }
+
+      try {
+        const url = new URL(raw);
+        if (!["http:", "https:"].includes(url.protocol)) {
+          return "";
+        }
+        return url.origin;
+      } catch {
+        return "";
+      }
+    }
+
+    const CUSTOM_SYNC_ORIGIN = normalizeSyncOrigin(localStorage.getItem(CUSTOM_SYNC_ORIGIN_KEY));
+    const LAN_SYNC_ORIGIN = window.location.protocol === "http:" && isLanSyncHost(window.location.hostname) ? window.location.origin : "";
+    const ACTIVE_SYNC_ORIGIN = CUSTOM_SYNC_ORIGIN || LAN_SYNC_ORIGIN;
+    const LAN_MODE = Boolean(ACTIVE_SYNC_ORIGIN);
+    const SYNC_API_BASE = LAN_MODE ? `${ACTIVE_SYNC_ORIGIN}/api` : "";
     const MIN_READING_EVENT_MS = 800;
 
     const DEFAULT_DISPLAY_SETTINGS = {
@@ -1084,8 +1129,11 @@
       syncModeText: document.getElementById("syncModeText"),
       syncStatusText: document.getElementById("syncStatusText"),
       syncAddressText: document.getElementById("syncAddressText"),
+      syncAddressInput: document.getElementById("syncAddressInput"),
       syncRefreshButton: document.getElementById("syncRefreshButton"),
-      syncImportLocalButton: document.getElementById("syncImportLocalButton")
+      syncImportLocalButton: document.getElementById("syncImportLocalButton"),
+      syncSaveAddressButton: document.getElementById("syncSaveAddressButton"),
+      syncClearAddressButton: document.getElementById("syncClearAddressButton")
     };
 
     let db = null;
@@ -1726,20 +1774,24 @@
 
       if (storage.mode === "lan") {
         const updated = storage.remoteUpdatedAt ? `，最近同步 ${formatDateTime(storage.remoteUpdatedAt)}` : "";
-        elements.syncModeText.textContent = "局域网同步";
-        elements.syncStatusText.textContent = message || `当前为局域网同步模式${updated}`;
-        elements.syncAddressText.textContent = window.location.href;
+        elements.syncModeText.textContent = CUSTOM_SYNC_ORIGIN ? "手动同步" : "局域网同步";
+        elements.syncStatusText.textContent = message || `当前为同步模式${updated}`;
+        elements.syncAddressText.textContent = `同步主库：${ACTIVE_SYNC_ORIGIN}`;
+        elements.syncAddressInput.value = ACTIVE_SYNC_ORIGIN;
         elements.storageHintText.textContent = "数据保存在电脑端同步主库中";
         elements.syncRefreshButton.classList.remove("hidden");
+        elements.syncClearAddressButton.classList.toggle("hidden", !CUSTOM_SYNC_ORIGIN);
         return;
       }
 
       elements.syncModeText.textContent = "本地模式";
       elements.syncStatusText.textContent = message || "当前为本地模式，数据只保存在这台设备。";
       elements.syncAddressText.textContent = "";
+      elements.syncAddressInput.value = "";
       elements.storageHintText.textContent = "数据保存在浏览器 IndexedDB 中";
       elements.syncRefreshButton.classList.add("hidden");
       elements.syncImportLocalButton.classList.add("hidden");
+      elements.syncClearAddressButton.classList.add("hidden");
     }
 
     async function loadLocalSnapshot() {
@@ -1836,6 +1888,25 @@
         showImportView("同步库仍为空，可以导入 CSV。");
       }
       updateSyncStatus("本机数据已导入同步库");
+    }
+
+    function saveCustomSyncAddress() {
+      const origin = normalizeSyncOrigin(elements.syncAddressInput.value);
+      if (!origin) {
+        updateSyncStatus("请输入完整同步地址，例如 http://192.168.1.8:8787");
+        elements.syncAddressInput.focus();
+        return;
+      }
+
+      localStorage.setItem(CUSTOM_SYNC_ORIGIN_KEY, origin);
+      updateSyncStatus("同步地址已保存，正在重新连接...");
+      window.setTimeout(() => window.location.reload(), 350);
+    }
+
+    function clearCustomSyncAddress() {
+      localStorage.removeItem(CUSTOM_SYNC_ORIGIN_KEY);
+      updateSyncStatus("同步地址已清除，正在切回当前模式...");
+      window.setTimeout(() => window.location.reload(), 350);
     }
 
     function startReadingSession(noteId, source = "initial") {
@@ -2906,6 +2977,17 @@
       importLocalDataToSync().catch(() => {
         updateSyncStatus("导入失败，请确认同步服务仍在运行。");
       });
+    });
+
+    elements.syncSaveAddressButton.addEventListener("click", saveCustomSyncAddress);
+    elements.syncClearAddressButton.addEventListener("click", clearCustomSyncAddress);
+    elements.syncAddressInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+
+      event.preventDefault();
+      saveCustomSyncAddress();
     });
 
     if (window.PointerEvent && !HAS_TOUCH_INPUT) {

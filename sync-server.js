@@ -18,7 +18,9 @@ const STATIC_ROUTES = new Map([
   ["/icons/icon-512.png", { file: path.join(ROOT, "icons", "icon-512.png"), type: "image/png", cache: "public, max-age=604800" }],
   ["/icons/maskable-512.png", { file: path.join(ROOT, "icons", "maskable-512.png"), type: "image/png", cache: "public, max-age=604800" }],
   ["/icons/apple-touch-icon.png", { file: path.join(ROOT, "icons", "apple-touch-icon.png"), type: "image/png", cache: "public, max-age=604800" }],
-  ["/icons/icon-source.svg", { file: path.join(ROOT, "icons", "icon-source.svg"), type: "image/svg+xml; charset=utf-8", cache: "public, max-age=604800" }]
+  ["/icons/icon-source.svg", { file: path.join(ROOT, "icons", "icon-source.svg"), type: "image/svg+xml; charset=utf-8", cache: "public, max-age=604800" }],
+  ["/vendor/tailwindcss-cdn.js", { file: path.join(ROOT, "vendor", "tailwindcss-cdn.js"), type: "text/javascript; charset=utf-8", cache: "public, max-age=604800" }],
+  ["/vendor/papaparse.min.js", { file: path.join(ROOT, "vendor", "papaparse.min.js"), type: "text/javascript; charset=utf-8", cache: "public, max-age=604800" }]
 ]);
 
 function nowIso() {

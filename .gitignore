@@ -9,8 +9,16 @@ _verify-*
 _edge-verify-profile/
 _edge-*-profile/
 _edge-swipe-test/
+.npm-cache/
 .superpowers/
 _git/
+
+# Package/build output
+node_modules/
+www/
+android/.gradle/
+android/app/build/
+android/build/
 
 # OS/editor noise
 .DS_Store

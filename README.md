@@ -26,6 +26,48 @@
 
 PWA 安装和离线缓存需要 HTTPS 或 localhost。直接打开 `file://` 仍可正常使用本地模式，但浏览器不会注册离线缓存。
 
+## 生成 Android APK
+
+项目已经加入 Capacitor Android 工程，可以生成手机可安装的 APK。
+
+### 在 GitHub 云端生成
+
+1. 把最新代码同步到 GitHub。
+2. 打开仓库的 `Actions` 页面。
+3. 选择 `Build Android APK`。
+4. 点击 `Run workflow`，等待任务完成。
+5. 在任务详情底部下载 `reading-note-reviewer-debug-apk`，里面包含 `app-debug.apk`。
+
+这是调试版 APK，安装到手机时可能需要允许“安装未知来源应用”。
+
+### 在本机生成
+
+本机需要先安装 JDK 17+、Android Studio 和 Android SDK，然后运行：
+
+```powershell
+npm.cmd --cache .npm-cache install
+npm.cmd run verify
+npm.cmd run android:build
+```
+
+生成结果位于：
+
+```text
+android\app\build\outputs\apk\debug\app-debug.apk
+```
+
+如果看到 `JAVA_HOME is not set`，说明本机还没有配置 JDK。安装 JDK 后设置 `JAVA_HOME`，再重新运行 `npm.cmd run android:build`。
+
+### APK 内使用局域网同步
+
+APK 不是从电脑的 `http://localhost:8787/` 打开的，所以需要在 App 里手动填写同步地址：
+
+1. 电脑双击 `start-sync.bat`。
+2. 手机和电脑连接同一 Wi-Fi。
+3. 在 App 右下角打开设置，进入同步区域。
+4. 填入电脑端显示的 `Mobile` 地址，例如 `http://192.168.1.8:8787`。
+5. 点击“保存同步地址”。
+
 ## 局域网同步
 
 1. 双击 `start-sync.bat`。

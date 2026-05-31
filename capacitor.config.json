@@ -1,0 +1,12 @@
+{
+  "appId": "com.tianlutao.readingreview",
+  "appName": "读书回顾",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
