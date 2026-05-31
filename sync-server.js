@@ -9,6 +9,17 @@ const INDEX_FILE = path.join(ROOT, "index.html");
 const DATA_FILE = path.join(ROOT, process.env.SYNC_DATA_FILE || "sync-data.json");
 const MAX_BODY_BYTES = 32 * 1024 * 1024;
 const SCHEMA_VERSION = 1;
+const STATIC_ROUTES = new Map([
+  ["/", { file: INDEX_FILE, type: "text/html; charset=utf-8", cache: "no-cache" }],
+  ["/index.html", { file: INDEX_FILE, type: "text/html; charset=utf-8", cache: "no-cache" }],
+  ["/manifest.webmanifest", { file: path.join(ROOT, "manifest.webmanifest"), type: "application/manifest+json; charset=utf-8", cache: "no-cache" }],
+  ["/service-worker.js", { file: path.join(ROOT, "service-worker.js"), type: "text/javascript; charset=utf-8", cache: "no-cache" }],
+  ["/icons/icon-192.png", { file: path.join(ROOT, "icons", "icon-192.png"), type: "image/png", cache: "public, max-age=604800" }],
+  ["/icons/icon-512.png", { file: path.join(ROOT, "icons", "icon-512.png"), type: "image/png", cache: "public, max-age=604800" }],
+  ["/icons/maskable-512.png", { file: path.join(ROOT, "icons", "maskable-512.png"), type: "image/png", cache: "public, max-age=604800" }],
+  ["/icons/apple-touch-icon.png", { file: path.join(ROOT, "icons", "apple-touch-icon.png"), type: "image/png", cache: "public, max-age=604800" }],
+  ["/icons/icon-source.svg", { file: path.join(ROOT, "icons", "icon-source.svg"), type: "image/svg+xml; charset=utf-8", cache: "public, max-age=604800" }]
+]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -98,6 +109,21 @@ function sendJson(res, statusCode, payload) {
 function sendText(res, statusCode, text, contentType = "text/plain; charset=utf-8") {
   res.writeHead(statusCode, { "Content-Type": contentType });
   res.end(text);
+}
+
+function sendStaticFile(res, route) {
+  fs.readFile(route.file, (error, data) => {
+    if (error) {
+      sendText(res, 404, "Not found");
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Type": route.type,
+      "Cache-Control": route.cache
+    });
+    res.end(data);
+  });
 }
 
 function readJsonBody(req) {
@@ -262,14 +288,8 @@ function handleRequest(req, res) {
     return;
   }
 
-  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-    fs.readFile(INDEX_FILE, (error, data) => {
-      if (error) {
-        sendText(res, 500, "index.html not found");
-        return;
-      }
-      sendText(res, 200, data, "text/html; charset=utf-8");
-    });
+  if (req.method === "GET" && STATIC_ROUTES.has(url.pathname)) {
+    sendStaticFile(res, STATIC_ROUTES.get(url.pathname));
     return;
   }
 

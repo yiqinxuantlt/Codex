@@ -3,7 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#8a9a7b" />
+  <meta name="application-name" content="读书回顾" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="读书回顾" />
   <title>读书笔记随机回顾</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
@@ -3050,6 +3058,24 @@
       }
     }
 
+    function canRegisterServiceWorker() {
+      const localHosts = ["localhost", "127.0.0.1", "::1"];
+      return "serviceWorker" in navigator && (location.protocol === "https:" || localHosts.includes(location.hostname));
+    }
+
+    function registerServiceWorker() {
+      if (!canRegisterServiceWorker()) {
+        return;
+      }
+
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch(() => {
+          // Direct file mode and non-secure LAN pages remain fully usable without PWA caching.
+        });
+      });
+    }
+
+    registerServiceWorker();
     initApp();
   </script>
 </body>
