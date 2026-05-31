@@ -10,6 +10,8 @@ _edge-verify-profile/
 _edge-*-profile/
 _edge-swipe-test/
 .npm-cache/
+.android-local/
+.gradle-cache/
 .superpowers/
 _git/
 

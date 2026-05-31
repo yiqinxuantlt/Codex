@@ -42,10 +42,11 @@ PWA 安装和离线缓存需要 HTTPS 或 localhost。直接打开 `file://` 仍
 
 ### 在本机生成
 
-本机需要先安装 JDK 17+、Android Studio 和 Android SDK，然后运行：
+可以使用项目自带脚本在当前目录安装一套便携构建工具，然后生成 APK：
 
 ```powershell
 npm.cmd --cache .npm-cache install
+npm.cmd run setup:android-local
 npm.cmd run verify
 npm.cmd run android:build
 ```
@@ -56,7 +57,9 @@ npm.cmd run android:build
 android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
-如果看到 `JAVA_HOME is not set`，说明本机还没有配置 JDK。安装 JDK 后设置 `JAVA_HOME`，再重新运行 `npm.cmd run android:build`。
+便携 JDK、Android SDK 和 Gradle 缓存会放在项目目录的 `.android-local`、`.gradle-cache` 中，不会上传到 GitHub。如果你已经在系统里安装了 JDK 和 Android SDK，也可以运行 `npm.cmd run android:build:system` 使用系统环境构建。
+
+如果在 Codex 沙箱里看到 `Unable to establish loopback connection`，请在普通 Windows PowerShell 里运行 `npm.cmd run android:build`。这是 Gradle 在受限沙箱内启动构建进程时的本地回环限制，不是项目代码或 APK 配置错误。
 
 ### APK 内使用局域网同步
 

@@ -4,11 +4,13 @@
   "private": true,
   "description": "A calm reading-note reviewer packaged as a web app and Android app.",
   "scripts": {
-    "android:build": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
+    "android:build": "node tools/build-android-local.js",
+    "android:build:system": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
     "cap:add:android": "npm run prepare:android && cap add android",
     "cap:copy": "npm run prepare:android && cap copy android",
     "cap:sync": "npm run prepare:android && cap sync android",
     "prepare:android": "node tools/prepare-capacitor-web.js",
+    "setup:android-local": "node tools/setup-android-local.js",
     "verify": "node tools/verify-app.js"
   },
   "dependencies": {
