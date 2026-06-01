@@ -1,4 +1,4 @@
-const APP_CACHE = "reading-review-app-v1";
+const APP_CACHE = "reading-review-app-v2";
 const RUNTIME_CACHE = "reading-review-runtime-v1";
 
 const APP_SHELL = [
@@ -10,7 +10,10 @@ const APP_SHELL = [
   "./icons/maskable-512.png",
   "./icons/apple-touch-icon.png",
   "./vendor/tailwindcss-cdn.js",
-  "./vendor/papaparse.min.js"
+  "./vendor/papaparse.min.js",
+  "./src/styles.css",
+  "./src/tailwind-config.js",
+  "./src/app.js"
 ];
 
 async function cacheExternalResources() {

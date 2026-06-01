@@ -16,6 +16,7 @@ _edge-swipe-test/
 .gradle-cache/
 .superpowers/
 _git/
+.git-empty-backup/
 
 # Package/build output
 node_modules/

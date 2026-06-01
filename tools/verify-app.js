@@ -1,25 +1,43 @@
 const fs = require("fs");
 
-function checkInlineScripts() {
+function checkHtmlReferences() {
   const html = fs.readFileSync("index.html", "utf8");
-  const scripts = [...html.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
-  scripts.forEach((code) => new Function(code));
-  return scripts.length;
+  const required = [
+    "./src/styles.css",
+    "./src/tailwind-config.js",
+    "./src/app.js"
+  ];
+  required.forEach((reference) => {
+    if (!html.includes(reference)) {
+      throw new Error(`Missing frontend reference: ${reference}`);
+    }
+  });
+  return required.length;
 }
 
 function checkJson(file) {
   JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function checkScript(file) {
+  new Function(fs.readFileSync(file, "utf8"));
+}
+
 checkJson("manifest.webmanifest");
-const scriptCount = checkInlineScripts();
-new Function(fs.readFileSync("service-worker.js", "utf8"));
-new Function(fs.readFileSync("sync-server.js", "utf8"));
+const frontendReferences = checkHtmlReferences();
+checkScript("src/tailwind-config.js");
+checkScript("src/app.js");
+checkScript("service-worker.js");
+checkScript("sync-server.js");
+fs.readdirSync("server")
+  .filter((file) => file.endsWith(".js"))
+  .forEach((file) => checkScript(`server/${file}`));
 
 console.log(JSON.stringify({
   manifest: true,
-  inlineScripts: scriptCount,
+  frontendReferences,
   serviceWorker: true,
   syncServer: true,
+  serverEntry: true,
   ok: true
 }));

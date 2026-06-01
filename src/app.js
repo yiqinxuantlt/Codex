@@ -1,0 +1,3242 @@
+    const DB_NAME = "reading-note-reviewer-db";
+    const DB_VERSION = 3;
+    const NOTES_STORE = "notes";
+    const SETTINGS_STORE = "settings";
+    const FONTS_STORE = "fonts";
+    const READING_EVENTS_STORE = "readingEvents";
+    const BACKUPS_STORE = "backups";
+    const DISPLAY_SETTINGS_KEY = "display";
+    const MIGRATION_KEY = "legacy-localstorage-v1-migrated";
+    const LEGACY_NOTES_KEY = "reading-note-reviewer.notes.v1";
+    const LEGACY_STYLE_KEY = "reading-note-reviewer.display.v1";
+    const CUSTOM_SYNC_ORIGIN_KEY = "reading-note-reviewer.sync-origin.v1";
+    const BACKUP_FILE_TYPE = "reading-note-reviewer-backup";
+    const BACKUP_VERSION = 1;
+    const MAX_LOCAL_BACKUPS = 10;
+
+    function isLanSyncHost(hostname) {
+      const host = hostname.replace(/^\[|\]$/g, "");
+      if (["localhost", "127.0.0.1", "::1"].includes(host)) {
+        return true;
+      }
+
+      const parts = host.split(".").map((part) => Number(part));
+      if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+        return false;
+      }
+
+      return (
+        parts[0] === 10 ||
+        (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+        (parts[0] === 192 && parts[1] === 168)
+      );
+    }
+
+    function normalizeSyncOrigin(value) {
+      const raw = cleanText(value).replace(/\/+$/g, "");
+      if (!raw) {
+        return "";
+      }
+
+      try {
+        const url = new URL(raw);
+        if (!["http:", "https:"].includes(url.protocol)) {
+          return "";
+        }
+        return url.origin;
+      } catch {
+        return "";
+      }
+    }
+
+    const CUSTOM_SYNC_ORIGIN = normalizeSyncOrigin(localStorage.getItem(CUSTOM_SYNC_ORIGIN_KEY));
+    const LAN_SYNC_ORIGIN = window.location.protocol === "http:" && isLanSyncHost(window.location.hostname) ? window.location.origin : "";
+    const ACTIVE_SYNC_ORIGIN = CUSTOM_SYNC_ORIGIN || LAN_SYNC_ORIGIN;
+    const LAN_MODE = Boolean(ACTIVE_SYNC_ORIGIN);
+    const SYNC_API_BASE = LAN_MODE ? `${ACTIVE_SYNC_ORIGIN}/api` : "";
+    const MIN_READING_EVENT_MS = 800;
+
+    const DEFAULT_DISPLAY_SETTINGS = {
+      theme: "paper",
+      fontMode: "builtin",
+      font: "serif",
+      customFontId: "",
+      size: "medium",
+      lineHeight: "relaxed"
+    };
+
+    const THEME_OPTIONS = {
+      paper: true,
+      night: true,
+      sepia: true,
+      green: true
+    };
+
+    const FONT_OPTIONS = {
+      serif: {
+        stack: "\"Noto Serif SC\", \"Songti SC\", \"STSong\", \"SimSun\", serif"
+      },
+      kai: {
+        stack: "\"KaiTi\", \"STKaiti\", \"Kaiti SC\", serif"
+      },
+      fang: {
+        stack: "\"FangSong\", \"STFangsong\", serif"
+      },
+      sans: {
+        stack: "\"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans SC\", sans-serif"
+      }
+    };
+
+    const SIZE_OPTIONS = {
+      small: { base: "clamp(0.98rem, 3.7vw, 1.12rem)", sm: "1.32rem", md: "1.48rem" },
+      medium: { base: "clamp(1.04rem, 4.05vw, 1.24rem)", sm: "1.7rem", md: "1.9rem" },
+      large: { base: "clamp(1.1rem, 4.25vw, 1.34rem)", sm: "1.92rem", md: "2.18rem" },
+      xlarge: { base: "clamp(1.16rem, 4.45vw, 1.44rem)", sm: "2.12rem", md: "2.42rem" }
+    };
+
+    const LINE_HEIGHT_OPTIONS = {
+      compact: "1.58",
+      relaxed: "1.82",
+      spacious: "2.02"
+    };
+
+    const elements = {
+      importView: document.getElementById("importView"),
+      reviewView: document.getElementById("reviewView"),
+      csvInput: document.getElementById("csvInput"),
+      fontInput: document.getElementById("fontInput"),
+      backupInput: document.getElementById("backupInput"),
+      importStatus: document.getElementById("importStatus"),
+      settingsButton: document.getElementById("settingsButton"),
+      settingsBackdrop: document.getElementById("settingsBackdrop"),
+      settingsPanel: document.getElementById("settingsPanel"),
+      settingsCloseButton: document.getElementById("settingsCloseButton"),
+      settingsNoteCount: document.getElementById("settingsNoteCount"),
+      storageHintText: document.getElementById("storageHintText"),
+      settingsStatus: document.getElementById("settingsStatus"),
+      settingsViews: Array.from(document.querySelectorAll("[data-settings-view]")),
+      openBookshelfButton: document.getElementById("openBookshelfButton"),
+      openLibraryButton: document.getElementById("openLibraryButton"),
+      openStyleButton: document.getElementById("openStyleButton"),
+      openRecordsButton: document.getElementById("openRecordsButton"),
+      openBackupButton: document.getElementById("openBackupButton"),
+      reimportButton: document.getElementById("reimportButton"),
+      clearDataButton: document.getElementById("clearDataButton"),
+      bookshelfListPanel: document.getElementById("bookshelfListPanel"),
+      bookDetailPanel: document.getElementById("bookDetailPanel"),
+      bookshelfSearchInput: document.getElementById("bookshelfSearchInput"),
+      bookshelfCountText: document.getElementById("bookshelfCountText"),
+      bookshelfSummaryGrid: document.getElementById("bookshelfSummaryGrid"),
+      bookshelfList: document.getElementById("bookshelfList"),
+      bookDetailBackButton: document.getElementById("bookDetailBackButton"),
+      bookDetailTitle: document.getElementById("bookDetailTitle"),
+      bookDetailMeta: document.getElementById("bookDetailMeta"),
+      bookDetailSummaryGrid: document.getElementById("bookDetailSummaryGrid"),
+      bookDetailReviewButton: document.getElementById("bookDetailReviewButton"),
+      bookDetailNotes: document.getElementById("bookDetailNotes"),
+      libraryList: document.getElementById("libraryList"),
+      libraryCountText: document.getElementById("libraryCountText"),
+      noteForm: document.getElementById("noteForm"),
+      libraryFormTitle: document.getElementById("libraryFormTitle"),
+      noteContentInput: document.getElementById("noteContentInput"),
+      noteBookInput: document.getElementById("noteBookInput"),
+      noteAuthorInput: document.getElementById("noteAuthorInput"),
+      saveNoteButton: document.getElementById("saveNoteButton"),
+      cancelEditButton: document.getElementById("cancelEditButton"),
+      styleChoices: Array.from(document.querySelectorAll("[data-style-group]")),
+      fontImportButton: document.getElementById("fontImportButton"),
+      customFontList: document.getElementById("customFontList"),
+      stylePreviewText: document.getElementById("stylePreviewText"),
+      recordsSummaryGrid: document.getElementById("recordsSummaryGrid"),
+      recordsChartsGrid: document.getElementById("recordsChartsGrid"),
+      recordsList: document.getElementById("recordsList"),
+      recordsCountText: document.getElementById("recordsCountText"),
+      recordsUpdatedText: document.getElementById("recordsUpdatedText"),
+      backupOverviewGrid: document.getElementById("backupOverviewGrid"),
+      backupUpdatedText: document.getElementById("backupUpdatedText"),
+      backupSnapshotCountText: document.getElementById("backupSnapshotCountText"),
+      backupSnapshotsList: document.getElementById("backupSnapshotsList"),
+      backupHealthList: document.getElementById("backupHealthList"),
+      backupHealthText: document.getElementById("backupHealthText"),
+      exportBackupButton: document.getElementById("exportBackupButton"),
+      importBackupButton: document.getElementById("importBackupButton"),
+      createSnapshotButton: document.getElementById("createSnapshotButton"),
+      exportRecordsCsvButton: document.getElementById("exportRecordsCsvButton"),
+      desktopBackupPanel: document.getElementById("desktopBackupPanel"),
+      desktopBackupButton: document.getElementById("desktopBackupButton"),
+      sessionSummary: document.getElementById("sessionSummary"),
+      swipeHint: document.getElementById("swipeHint"),
+      reviewScopeControls: document.getElementById("reviewScopeControls"),
+      reviewScopeButtons: Array.from(document.querySelectorAll("[data-review-scope]")),
+      readingCard: document.getElementById("readingCard"),
+      favoriteButton: document.getElementById("favoriteButton"),
+      previousButton: document.getElementById("previousButton"),
+      randomButton: document.getElementById("randomButton"),
+      nextButton: document.getElementById("nextButton"),
+      quoteWrap: document.getElementById("quoteWrap"),
+      noteText: document.getElementById("noteText"),
+      noteSource: document.getElementById("noteSource"),
+      countText: document.getElementById("countText"),
+      syncModeText: document.getElementById("syncModeText"),
+      syncStatusText: document.getElementById("syncStatusText"),
+      syncAddressText: document.getElementById("syncAddressText"),
+      syncAddressInput: document.getElementById("syncAddressInput"),
+      syncRefreshButton: document.getElementById("syncRefreshButton"),
+      syncImportLocalButton: document.getElementById("syncImportLocalButton"),
+      syncSaveAddressButton: document.getElementById("syncSaveAddressButton"),
+      syncClearAddressButton: document.getElementById("syncClearAddressButton")
+    };
+
+    let db = null;
+    let notes = [];
+    let readingEvents = [];
+    let readingStats = createEmptyReadingStats();
+    let customFonts = [];
+    let registeredFonts = new Map();
+    let currentIndex = -1;
+    let editingNoteId = null;
+    let reviewScope = "all";
+    let activeBookKey = "";
+    let activeBookshelfKey = "";
+    let displaySettings = { ...DEFAULT_DISPLAY_SETTINGS };
+    let readingSession = null;
+    let swipeStart = null;
+    let isAnimatingCard = false;
+    const backupThrottle = new Map();
+    const SWIPE_TRIGGER_PX = 40;
+    const SWIPE_AXIS_RATIO = 1.15;
+    const HAS_TOUCH_INPUT = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+    function cleanText(value) {
+      return String(value ?? "").replace(/\uFEFF/g, "").trim();
+    }
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    function createId(prefix = "id") {
+      if (window.crypto?.randomUUID) {
+        return `${prefix}_${crypto.randomUUID()}`;
+      }
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+
+    function createNote(data = {}) {
+      const content = cleanText(data.content);
+      if (!content) {
+        return null;
+      }
+
+      const timestamp = nowIso();
+      return {
+        id: cleanText(data.id) || createId("note"),
+        content,
+        book: cleanText(data.book) || "未知书名",
+        author: cleanText(data.author),
+        chapter: cleanText(data.chapter),
+        remark: cleanText(data.remark),
+        createdAt: cleanText(data.createdAt) || timestamp,
+        updatedAt: cleanText(data.updatedAt) || timestamp,
+        favorite: Boolean(data.favorite)
+      };
+    }
+
+    function normalizeRow(row) {
+      return createNote({
+        content: row["笔记内容"],
+        book: row["书名"],
+        author: row["作者"],
+        chapter: row["章节名称"],
+        remark: row["备注"]
+      });
+    }
+
+    function sanitizeDisplaySettings(input = {}) {
+      const nextSettings = {
+        ...DEFAULT_DISPLAY_SETTINGS,
+        ...input
+      };
+
+      if (!THEME_OPTIONS[nextSettings.theme]) {
+        nextSettings.theme = DEFAULT_DISPLAY_SETTINGS.theme;
+      }
+      if (!FONT_OPTIONS[nextSettings.font]) {
+        nextSettings.font = DEFAULT_DISPLAY_SETTINGS.font;
+      }
+      if (!SIZE_OPTIONS[nextSettings.size]) {
+        nextSettings.size = DEFAULT_DISPLAY_SETTINGS.size;
+      }
+      if (!LINE_HEIGHT_OPTIONS[nextSettings.lineHeight]) {
+        nextSettings.lineHeight = DEFAULT_DISPLAY_SETTINGS.lineHeight;
+      }
+      if (!["builtin", "custom"].includes(nextSettings.fontMode)) {
+        nextSettings.fontMode = DEFAULT_DISPLAY_SETTINGS.fontMode;
+      }
+      nextSettings.customFontId = cleanText(nextSettings.customFontId);
+
+      return nextSettings;
+    }
+
+    function escapeHtml(value) {
+      return cleanText(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function requestToPromise(request) {
+      return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function transactionDone(transaction) {
+      return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    }
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error("当前浏览器不支持 IndexedDB。"));
+          return;
+        }
+
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = () => {
+          const nextDb = request.result;
+          if (!nextDb.objectStoreNames.contains(NOTES_STORE)) {
+            const notesStore = nextDb.createObjectStore(NOTES_STORE, { keyPath: "id" });
+            notesStore.createIndex("createdAt", "createdAt", { unique: false });
+            notesStore.createIndex("updatedAt", "updatedAt", { unique: false });
+          }
+          if (!nextDb.objectStoreNames.contains(SETTINGS_STORE)) {
+            nextDb.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
+          }
+          if (!nextDb.objectStoreNames.contains(FONTS_STORE)) {
+            const fontsStore = nextDb.createObjectStore(FONTS_STORE, { keyPath: "id" });
+            fontsStore.createIndex("createdAt", "createdAt", { unique: false });
+          }
+          if (!nextDb.objectStoreNames.contains(READING_EVENTS_STORE)) {
+            const eventsStore = nextDb.createObjectStore(READING_EVENTS_STORE, { keyPath: "id" });
+            eventsStore.createIndex("noteId", "noteId", { unique: false });
+            eventsStore.createIndex("dateKey", "dateKey", { unique: false });
+            eventsStore.createIndex("startedAt", "startedAt", { unique: false });
+            eventsStore.createIndex("endedAt", "endedAt", { unique: false });
+          }
+          if (!nextDb.objectStoreNames.contains(BACKUPS_STORE)) {
+            const backupsStore = nextDb.createObjectStore(BACKUPS_STORE, { keyPath: "id" });
+            backupsStore.createIndex("createdAt", "createdAt", { unique: false });
+            backupsStore.createIndex("kind", "kind", { unique: false });
+          }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function dbGet(storeName, key) {
+      const transaction = db.transaction(storeName, "readonly");
+      return requestToPromise(transaction.objectStore(storeName).get(key));
+    }
+
+    function dbGetAll(storeName) {
+      const transaction = db.transaction(storeName, "readonly");
+      return requestToPromise(transaction.objectStore(storeName).getAll());
+    }
+
+    async function dbPut(storeName, value) {
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).put(value);
+      await transactionDone(transaction);
+    }
+
+    async function dbDelete(storeName, key) {
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).delete(key);
+      await transactionDone(transaction);
+    }
+
+    async function dbClear(storeName) {
+      const transaction = db.transaction(storeName, "readwrite");
+      transaction.objectStore(storeName).clear();
+      await transactionDone(transaction);
+    }
+
+    async function dbReplaceAll(storeName, records) {
+      const transaction = db.transaction(storeName, "readwrite");
+      const store = transaction.objectStore(storeName);
+      store.clear();
+      records.forEach((record) => store.put(record));
+      await transactionDone(transaction);
+    }
+
+    async function apiRequest(path, options = {}) {
+      const response = await fetch(`${SYNC_API_BASE}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP_${response.status}`);
+      }
+      return data;
+    }
+
+    function normalizeRemoteState(payload = {}) {
+      const state = payload.state || payload;
+      return {
+        notes: sortNotes(Array.isArray(state.notes) ? state.notes.map((note) => createNote(note)).filter(Boolean) : []),
+        settings: sanitizeDisplaySettings(state.settings || {}),
+        fonts: loadAndSortFonts(Array.isArray(state.fonts) ? state.fonts : []),
+        readingEvents: Array.isArray(state.readingEvents) ? state.readingEvents : [],
+        updatedAt: state.updatedAt || ""
+      };
+    }
+
+    const storage = {
+      mode: LAN_MODE ? "lan" : "local",
+      remoteUpdatedAt: "",
+      async loadAll() {
+        if (this.mode === "lan") {
+          const data = await apiRequest("/state");
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state;
+        }
+
+        return {
+          notes: await loadNotesFromDb(),
+          settings: await loadDisplaySettingsFromDb(),
+          fonts: await loadFontsFromDb(),
+          readingEvents: await loadReadingEventsFromDb(),
+          updatedAt: ""
+        };
+      },
+      async saveNotes(nextNotes, source = "notes") {
+        const sortedNotes = sortNotes(nextNotes);
+        if (this.mode === "lan") {
+          const data = await apiRequest("/notes", {
+            method: "POST",
+            body: JSON.stringify({
+              notes: sortedNotes,
+              replace: source === "csv-import" || source === "notes-replace",
+              source
+            })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.notes;
+        }
+        await persistNotesToDb(sortedNotes);
+        return sortedNotes;
+      },
+      async saveSettings(nextSettings, source = "settings") {
+        const cleanSettings = sanitizeDisplaySettings(nextSettings);
+        if (this.mode === "lan") {
+          const data = await apiRequest("/settings", {
+            method: "POST",
+            body: JSON.stringify({ settings: cleanSettings, source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.settings;
+        }
+        await persistDisplaySettingsToDb(cleanSettings);
+        return cleanSettings;
+      },
+      async saveFonts(nextFonts, source = "fonts") {
+        const sortedFonts = loadAndSortFonts(nextFonts);
+        if (this.mode === "lan") {
+          const data = await apiRequest("/fonts", {
+            method: "POST",
+            body: JSON.stringify({ fonts: sortedFonts, replace: true, source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.fonts;
+        }
+        await dbReplaceAll(FONTS_STORE, sortedFonts);
+        return sortedFonts;
+      },
+      async appendReadingEvents(events, source = "reading-events") {
+        const rows = Array.isArray(events) ? events : [];
+        if (!rows.length) {
+          return readingEvents;
+        }
+        if (this.mode === "lan") {
+          const data = await apiRequest("/reading-events", {
+            method: "POST",
+            body: JSON.stringify({ readingEvents: rows, source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.readingEvents;
+        }
+        for (const event of rows) {
+          await dbPut(READING_EVENTS_STORE, event);
+        }
+        return readingEvents.concat(rows);
+      },
+      async deleteNote(noteId) {
+        if (this.mode === "lan") {
+          const data = await apiRequest(`/notes/${encodeURIComponent(noteId)}`, { method: "DELETE" });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.notes;
+        }
+        await dbDelete(NOTES_STORE, noteId);
+        return notes.filter((item) => item.id !== noteId);
+      },
+      async deleteFont(fontId) {
+        if (this.mode === "lan") {
+          const data = await apiRequest(`/fonts/${encodeURIComponent(fontId)}`, { method: "DELETE" });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.fonts;
+        }
+        await dbDelete(FONTS_STORE, fontId);
+        return customFonts.filter((item) => item.id !== fontId);
+      },
+      async clearNotes(source = "clear-notes") {
+        if (this.mode === "lan") {
+          const data = await apiRequest("/clear-notes", {
+            method: "POST",
+            body: JSON.stringify({ source })
+          });
+          const state = normalizeRemoteState(data);
+          this.remoteUpdatedAt = state.updatedAt;
+          return state.notes;
+        }
+        await dbClear(NOTES_STORE);
+        return [];
+      },
+      async replaceRemoteState(state, source = "local-migration") {
+        const data = await apiRequest("/state", {
+          method: "PUT",
+          body: JSON.stringify({ state, source })
+        });
+        const nextState = normalizeRemoteState(data);
+        this.remoteUpdatedAt = nextState.updatedAt;
+        return nextState;
+      }
+    };
+
+    async function persistNotesToDb(nextNotes = notes) {
+      const sortedNotes = sortNotes(nextNotes);
+      if (!sortedNotes.length) {
+        await dbClear(NOTES_STORE);
+        return;
+      }
+      await dbReplaceAll(NOTES_STORE, sortedNotes);
+    }
+
+    async function persistDisplaySettingsToDb(nextSettings = displaySettings) {
+      await dbPut(SETTINGS_STORE, {
+        key: DISPLAY_SETTINGS_KEY,
+        value: sanitizeDisplaySettings(nextSettings),
+        updatedAt: nowIso()
+      });
+    }
+
+    async function persistNotes(nextNotes = notes, source = "notes") {
+      notes = await storage.saveNotes(nextNotes, source);
+      updateNoteCounts();
+      updateSyncStatus();
+    }
+
+    async function persistDisplaySettings(source = "settings") {
+      displaySettings = await storage.saveSettings(displaySettings, source);
+      updateSyncStatus();
+    }
+
+    function sortNotes(nextNotes) {
+      return [...nextNotes].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    }
+
+    function getDateKey(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function createEmptyReadingStats() {
+      return {
+        todayDurationMs: 0,
+        todayViews: 0,
+        todayUniqueNotes: 0,
+        totalDurationMs: 0,
+        totalViews: 0,
+        byNote: new Map(),
+        sortedNotes: []
+      };
+    }
+
+    function formatDuration(durationMs) {
+      const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours) {
+        return `${hours}时${minutes}分`;
+      }
+      if (minutes) {
+        return `${minutes}分${seconds}秒`;
+      }
+      return `${seconds}秒`;
+    }
+
+    function formatShortDuration(durationMs) {
+      const totalMinutes = Math.floor(durationMs / 60000);
+      if (totalMinutes >= 60) {
+        return `${Math.floor(totalMinutes / 60)}时${totalMinutes % 60}分`;
+      }
+      if (totalMinutes > 0) {
+        return `${totalMinutes}分钟`;
+      }
+      return `${Math.max(0, Math.round(durationMs / 1000))}秒`;
+    }
+
+    function formatDateTime(value) {
+      if (!value) {
+        return "暂无记录";
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "暂无记录";
+      }
+
+      const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+      if (getDateKey(date) === getDateKey()) {
+        return `今天 ${time}`;
+      }
+      return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+    }
+
+    function getRecentDaySeries(days = 7) {
+      const today = new Date();
+      return Array.from({ length: days }, (_, index) => {
+        const date = new Date(today);
+        date.setDate(today.getDate() - (days - index - 1));
+        return {
+          dateKey: getDateKey(date),
+          label: index === days - 1 ? "今天" : `${date.getMonth() + 1}/${date.getDate()}`,
+          durationMs: 0,
+          views: 0
+        };
+      });
+    }
+
+    function getEventDateKey(event) {
+      if (event.dateKey) {
+        return event.dateKey;
+      }
+
+      const date = new Date(event.endedAt || event.startedAt);
+      return Number.isNaN(date.getTime()) ? "" : getDateKey(date);
+    }
+
+    function getDailyReadingSeries(events = readingEvents, days = 7) {
+      const series = getRecentDaySeries(days);
+      const byDate = new Map(series.map((item) => [item.dateKey, item]));
+
+      events.forEach((event) => {
+        const dateKey = getEventDateKey(event);
+        const item = byDate.get(dateKey);
+        if (!item) {
+          return;
+        }
+        item.durationMs += Number(event.durationMs) || 0;
+        item.views += 1;
+      });
+
+      return series;
+    }
+
+    function getPercent(value, maxValue, minimum = 0) {
+      if (!maxValue || maxValue <= 0) {
+        return minimum;
+      }
+      const percent = Math.round((value / maxValue) * 100);
+      return Math.min(100, Math.max(minimum, percent));
+    }
+
+    function getNoteSource(note) {
+      if (!note) {
+        return "已删除句子";
+      }
+      return note.author ? `《${note.book}》${note.author}` : `《${note.book}》`;
+    }
+
+    function aggregateReadingStats(events = readingEvents) {
+      const todayKey = getDateKey();
+      const todayNoteIds = new Set();
+      const byNote = new Map();
+      const stats = createEmptyReadingStats();
+
+      events.forEach((event) => {
+        const durationMs = Number(event.durationMs) || 0;
+        stats.totalDurationMs += durationMs;
+        stats.totalViews += 1;
+
+        if (event.dateKey === todayKey) {
+          stats.todayDurationMs += durationMs;
+          stats.todayViews += 1;
+          todayNoteIds.add(event.noteId);
+        }
+
+        if (!byNote.has(event.noteId)) {
+          byNote.set(event.noteId, {
+            noteId: event.noteId,
+            totalDurationMs: 0,
+            viewCount: 0,
+            lastViewedAt: "",
+            events: []
+          });
+        }
+
+        const noteStats = byNote.get(event.noteId);
+        noteStats.totalDurationMs += durationMs;
+        noteStats.viewCount += 1;
+        noteStats.events.push(event);
+        if (!noteStats.lastViewedAt || String(event.endedAt).localeCompare(noteStats.lastViewedAt) > 0) {
+          noteStats.lastViewedAt = event.endedAt;
+        }
+      });
+
+      byNote.forEach((noteStats) => {
+        noteStats.events.sort((a, b) => String(b.endedAt).localeCompare(String(a.endedAt)));
+      });
+
+      stats.todayUniqueNotes = todayNoteIds.size;
+      stats.byNote = byNote;
+      stats.sortedNotes = [...byNote.values()].sort((a, b) => {
+        if (b.totalDurationMs !== a.totalDurationMs) {
+          return b.totalDurationMs - a.totalDurationMs;
+        }
+        return String(b.lastViewedAt).localeCompare(String(a.lastViewedAt));
+      });
+      return stats;
+    }
+
+    function updateReadingStats() {
+      readingStats = aggregateReadingStats();
+      updateTopReadingSummary();
+    }
+
+    function updateTopReadingSummary() {
+      if (!elements.sessionSummary) {
+        return;
+      }
+
+      const todayDuration = readingStats.todayDurationMs ? formatShortDuration(readingStats.todayDurationMs) : "0分钟";
+      elements.sessionSummary.textContent = `今日 ${todayDuration} · ${readingStats.todayViews} 次浏览`;
+    }
+
+    async function loadReadingEventsFromDb() {
+      const rows = await dbGetAll(READING_EVENTS_STORE);
+      return rows.sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)));
+    }
+
+    async function migrateLegacyData() {
+      const migrationRecord = await dbGet(SETTINGS_STORE, MIGRATION_KEY);
+      if (migrationRecord?.value === true) {
+        return;
+      }
+
+      const existingNotes = await dbGetAll(NOTES_STORE);
+      const legacyNotesRaw = localStorage.getItem(LEGACY_NOTES_KEY);
+      if (legacyNotesRaw && !existingNotes.length) {
+        try {
+          const legacyNotes = JSON.parse(legacyNotesRaw);
+          if (Array.isArray(legacyNotes)) {
+            const migratedNotes = legacyNotes.map((note) => createNote(note)).filter(Boolean);
+            if (migratedNotes.length) {
+              await dbReplaceAll(NOTES_STORE, migratedNotes);
+              localStorage.setItem(`${LEGACY_NOTES_KEY}.migratedBackup`, legacyNotesRaw);
+              localStorage.removeItem(LEGACY_NOTES_KEY);
+            }
+          }
+        } catch {
+          localStorage.setItem(`${LEGACY_NOTES_KEY}.migrationFailedBackup`, legacyNotesRaw);
+        }
+      }
+
+      const existingSettings = await dbGet(SETTINGS_STORE, DISPLAY_SETTINGS_KEY);
+      const legacyStyleRaw = localStorage.getItem(LEGACY_STYLE_KEY);
+      if (legacyStyleRaw && !existingSettings) {
+        try {
+          const legacyStyle = JSON.parse(legacyStyleRaw);
+          await dbPut(SETTINGS_STORE, {
+            key: DISPLAY_SETTINGS_KEY,
+            value: sanitizeDisplaySettings(legacyStyle),
+            updatedAt: nowIso()
+          });
+          localStorage.setItem(`${LEGACY_STYLE_KEY}.migratedBackup`, legacyStyleRaw);
+          localStorage.removeItem(LEGACY_STYLE_KEY);
+        } catch {
+          localStorage.setItem(`${LEGACY_STYLE_KEY}.migrationFailedBackup`, legacyStyleRaw);
+        }
+      }
+
+      await dbPut(SETTINGS_STORE, {
+        key: MIGRATION_KEY,
+        value: true,
+        migratedAt: nowIso()
+      });
+    }
+
+    async function loadNotesFromDb() {
+      const rows = await dbGetAll(NOTES_STORE);
+      return sortNotes(rows.map((note) => createNote(note)).filter(Boolean));
+    }
+
+    async function loadFontsFromDb() {
+      const rows = await dbGetAll(FONTS_STORE);
+      return rows.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    }
+
+    async function loadDisplaySettingsFromDb() {
+      const record = await dbGet(SETTINGS_STORE, DISPLAY_SETTINGS_KEY);
+      return sanitizeDisplaySettings(record?.value || DEFAULT_DISPLAY_SETTINGS);
+    }
+
+    function setStatus(message = "") {
+      elements.importStatus.textContent = message;
+      elements.settingsStatus.textContent = message;
+    }
+
+    function updateNoteCounts() {
+      const favoriteCount = notes.filter((note) => note.favorite).length;
+      if (reviewScope === "book") {
+        const group = getBookGroupByKey(activeBookKey);
+        elements.countText.textContent = group
+          ? `《${group.book}》 ${group.noteCount} 条 · 收藏 ${group.favoriteCount} 条`
+          : `${notes.length} 条笔记 · ${favoriteCount} 条收藏`;
+      } else {
+        elements.countText.textContent = reviewScope === "favorites"
+          ? `收藏 ${favoriteCount} 条 · 共 ${notes.length} 条`
+          : `${notes.length} 条笔记 · ${favoriteCount} 条收藏`;
+      }
+      elements.settingsNoteCount.textContent = `${notes.length} 条 · 收藏 ${favoriteCount} 条`;
+      elements.libraryCountText.textContent = `${notes.length} 条`;
+      updateReviewScopeButtons();
+      updateFavoriteButton();
+      updateTopReadingSummary();
+    }
+
+    function updateReviewScopeButtons() {
+      elements.reviewScopeButtons.forEach((button) => {
+        const isActive = button.dataset.reviewScope === reviewScope;
+        button.setAttribute("aria-pressed", String(isActive));
+        button.classList.toggle("bg-ink", isActive);
+        button.classList.toggle("text-paper", isActive);
+        button.classList.toggle("text-muted", !isActive);
+      });
+    }
+
+    function updateFavoriteButton() {
+      if (!elements.favoriteButton) {
+        return;
+      }
+
+      const note = notes[currentIndex];
+      const isFavorite = Boolean(note?.favorite);
+      elements.favoriteButton.textContent = isFavorite ? "★" : "☆";
+      elements.favoriteButton.setAttribute("aria-pressed", String(isFavorite));
+      elements.favoriteButton.setAttribute("aria-label", isFavorite ? "取消收藏当前句子" : "收藏当前句子");
+      elements.favoriteButton.classList.toggle("text-sage", isFavorite);
+      elements.favoriteButton.classList.toggle("text-muted", !isFavorite);
+    }
+
+    function getReviewPool() {
+      if (reviewScope === "book") {
+        const group = getBookGroupByKey(activeBookKey);
+        if (group?.notes.length) {
+          return group.notes;
+        }
+
+        reviewScope = "all";
+        activeBookKey = "";
+        setStatus("这本书暂时没有可回顾的摘录，已切回全部回顾。");
+        updateReviewScopeButtons();
+        return notes;
+      }
+
+      if (reviewScope !== "favorites") {
+        return notes;
+      }
+
+      const favorites = notes.filter((note) => note.favorite);
+      if (favorites.length) {
+        return favorites;
+      }
+
+      reviewScope = "all";
+      activeBookKey = "";
+      setStatus("还没有收藏句子，已切回全部回顾。");
+      updateReviewScopeButtons();
+      return notes;
+    }
+
+    function getReviewPoolIndex(pool) {
+      if (currentIndex < 0 || !notes[currentIndex]) {
+        return -1;
+      }
+      return pool.findIndex((note) => note.id === notes[currentIndex].id);
+    }
+
+    function getBookTitle(note) {
+      return cleanText(note?.book) || "未知书名";
+    }
+
+    function getBookAuthor(note) {
+      return cleanText(note?.author);
+    }
+
+    function getBookKeyFromParts(book, author) {
+      return `${cleanText(book).toLowerCase() || "未知书名"}::${cleanText(author).toLowerCase()}`;
+    }
+
+    function getBookKey(note) {
+      return getBookKeyFromParts(getBookTitle(note), getBookAuthor(note));
+    }
+
+    function getBookSource(book, author) {
+      return author ? `《${book}》${author}` : `《${book}》`;
+    }
+
+    function summarizeBookNotes(bookNotes) {
+      return bookNotes.reduce((summary, note) => {
+        const stats = readingStats.byNote.get(note.id);
+        summary.favoriteCount += note.favorite ? 1 : 0;
+        summary.totalDurationMs += stats?.totalDurationMs || 0;
+        summary.viewCount += stats?.viewCount || 0;
+        if (stats?.lastViewedAt && (!summary.lastViewedAt || stats.lastViewedAt > summary.lastViewedAt)) {
+          summary.lastViewedAt = stats.lastViewedAt;
+        }
+        if (note.updatedAt && (!summary.lastUpdatedAt || note.updatedAt > summary.lastUpdatedAt)) {
+          summary.lastUpdatedAt = note.updatedAt;
+        }
+        return summary;
+      }, {
+        favoriteCount: 0,
+        totalDurationMs: 0,
+        viewCount: 0,
+        lastViewedAt: "",
+        lastUpdatedAt: ""
+      });
+    }
+
+    function getBookGroups() {
+      const groups = new Map();
+      notes.forEach((note) => {
+        const book = getBookTitle(note);
+        const author = getBookAuthor(note);
+        const key = getBookKeyFromParts(book, author);
+        if (!groups.has(key)) {
+          groups.set(key, { key, book, author, notes: [] });
+        }
+        groups.get(key).notes.push(note);
+      });
+
+      return Array.from(groups.values()).map((group) => ({
+        ...group,
+        ...summarizeBookNotes(group.notes),
+        noteCount: group.notes.length
+      })).sort((a, b) => {
+        const recentCompare = String(b.lastUpdatedAt).localeCompare(String(a.lastUpdatedAt));
+        return recentCompare || a.book.localeCompare(b.book, "zh-Hans-CN");
+      });
+    }
+
+    function getBookGroupByKey(bookKey) {
+      return getBookGroups().find((group) => group.key === bookKey) || null;
+    }
+
+    function updateSyncStatus(message = "") {
+      if (!elements.syncModeText || !elements.syncStatusText) {
+        return;
+      }
+
+      if (storage.mode === "lan") {
+        const updated = storage.remoteUpdatedAt ? `，最近同步 ${formatDateTime(storage.remoteUpdatedAt)}` : "";
+        elements.syncModeText.textContent = CUSTOM_SYNC_ORIGIN ? "手动同步" : "局域网同步";
+        elements.syncStatusText.textContent = message || `当前为同步模式${updated}`;
+        elements.syncAddressText.textContent = `同步主库：${ACTIVE_SYNC_ORIGIN}`;
+        elements.syncAddressInput.value = ACTIVE_SYNC_ORIGIN;
+        elements.storageHintText.textContent = "数据保存在电脑端同步主库中";
+        elements.syncRefreshButton.classList.remove("hidden");
+        elements.syncClearAddressButton.classList.toggle("hidden", !CUSTOM_SYNC_ORIGIN);
+        return;
+      }
+
+      elements.syncModeText.textContent = "本地模式";
+      elements.syncStatusText.textContent = message || "当前为本地模式，数据只保存在这台设备。";
+      elements.syncAddressText.textContent = "";
+      elements.syncAddressInput.value = "";
+      elements.storageHintText.textContent = "数据保存在浏览器 IndexedDB 中";
+      elements.syncRefreshButton.classList.add("hidden");
+      elements.syncImportLocalButton.classList.add("hidden");
+      elements.syncClearAddressButton.classList.add("hidden");
+    }
+
+    async function loadLocalSnapshot() {
+      return {
+        schemaVersion: 1,
+        updatedAt: nowIso(),
+        notes: await loadNotesFromDb(),
+        settings: await loadDisplaySettingsFromDb(),
+        fonts: await loadFontsFromDb(),
+        readingEvents: await loadReadingEventsFromDb(),
+        meta: {
+          createdAt: nowIso(),
+          lastWriteSource: "local-browser-import"
+        }
+      };
+    }
+
+    function asArray(value) {
+      return Array.isArray(value) ? value : [];
+    }
+
+    function hasSnapshotData(snapshot) {
+      return Boolean(
+        snapshot.notes?.length ||
+        snapshot.fonts?.length ||
+        snapshot.readingEvents?.length
+      );
+    }
+
+    function normalizeFontRecord(font = {}) {
+      const dataUrl = cleanText(font.dataUrl);
+      if (!dataUrl) {
+        return null;
+      }
+
+      const timestamp = cleanText(font.createdAt) || nowIso();
+      return {
+        ...font,
+        id: cleanText(font.id) || createId("font"),
+        name: cleanText(font.name) || "未命名字体",
+        mimeType: cleanText(font.mimeType) || "font/unknown",
+        dataUrl,
+        createdAt: timestamp
+      };
+    }
+
+    function normalizeReadingEvent(event = {}) {
+      const noteId = cleanText(event.noteId);
+      if (!noteId) {
+        return null;
+      }
+
+      const endedAt = cleanText(event.endedAt) || nowIso();
+      const startedAt = cleanText(event.startedAt) || endedAt;
+      const durationMs = Math.max(0, Number(event.durationMs) || 0);
+      return {
+        ...event,
+        id: cleanText(event.id) || createId("event"),
+        noteId,
+        startedAt,
+        endedAt,
+        durationMs,
+        source: cleanText(event.source),
+        reason: cleanText(event.reason),
+        dateKey: cleanText(event.dateKey) || getEventDateKey({ endedAt, startedAt })
+      };
+    }
+
+    function normalizeStateSnapshot(input = {}) {
+      const source = input.state || input.data || input;
+      const timestamp = cleanText(source.updatedAt) || nowIso();
+      return {
+        schemaVersion: 1,
+        updatedAt: timestamp,
+        notes: sortNotes(asArray(source.notes).map((note) => createNote(note)).filter(Boolean)),
+        settings: sanitizeDisplaySettings(source.settings || {}),
+        fonts: loadAndSortFonts(asArray(source.fonts).map(normalizeFontRecord).filter(Boolean)),
+        readingEvents: asArray(source.readingEvents).map(normalizeReadingEvent).filter(Boolean),
+        meta: {
+          createdAt: cleanText(source.meta?.createdAt) || timestamp,
+          lastWriteSource: cleanText(source.meta?.lastWriteSource) || "backup"
+        }
+      };
+    }
+
+    function normalizeBackupPayload(payload = {}) {
+      const root = payload && typeof payload === "object" ? payload : {};
+      if (root.type === BACKUP_FILE_TYPE && root.data) {
+        return normalizeStateSnapshot(root.data);
+      }
+      if (root.ok && root.state) {
+        return normalizeStateSnapshot(root.state);
+      }
+      return normalizeStateSnapshot(root);
+    }
+
+    function summarizeSnapshot(snapshot = {}) {
+      return {
+        notes: asArray(snapshot.notes).length,
+        favorites: asArray(snapshot.notes).filter((note) => note.favorite).length,
+        fonts: asArray(snapshot.fonts).length,
+        readingEvents: asArray(snapshot.readingEvents).length
+      };
+    }
+
+    function createBackupEnvelope(snapshot, source = "manual-export") {
+      const cleanSnapshot = normalizeStateSnapshot(snapshot);
+      return {
+        type: BACKUP_FILE_TYPE,
+        backupVersion: BACKUP_VERSION,
+        exportedAt: nowIso(),
+        sourceMode: storage.mode,
+        source,
+        summary: summarizeSnapshot(cleanSnapshot),
+        data: {
+          ...cleanSnapshot,
+          updatedAt: nowIso(),
+          meta: {
+            ...cleanSnapshot.meta,
+            lastWriteSource: source
+          }
+        }
+      };
+    }
+
+    async function captureCurrentSnapshot() {
+      if (storage.mode === "lan") {
+        return normalizeStateSnapshot(await storage.loadAll());
+      }
+      return normalizeStateSnapshot(await loadLocalSnapshot());
+    }
+
+    function formatFileStamp(date = new Date()) {
+      const parts = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+        "-",
+        String(date.getHours()).padStart(2, "0"),
+        String(date.getMinutes()).padStart(2, "0"),
+        String(date.getSeconds()).padStart(2, "0")
+      ];
+      return parts.join("");
+    }
+
+    function downloadTextFile(filename, text, type = "application/json;charset=utf-8") {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function loadLocalBackups() {
+      if (!db) {
+        return [];
+      }
+      const rows = await dbGetAll(BACKUPS_STORE);
+      return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    }
+
+    async function pruneLocalBackups() {
+      const rows = await loadLocalBackups();
+      const expired = rows.slice(MAX_LOCAL_BACKUPS);
+      for (const backup of expired) {
+        await dbDelete(BACKUPS_STORE, backup.id);
+      }
+    }
+
+    async function createLocalBackup(source = "manual", kind = "auto") {
+      if (!db) {
+        return null;
+      }
+      const snapshot = await captureCurrentSnapshot();
+      const createdAt = nowIso();
+      const record = {
+        id: createId("backup"),
+        kind,
+        source,
+        createdAt,
+        summary: summarizeSnapshot(snapshot),
+        data: snapshot
+      };
+      await dbPut(BACKUPS_STORE, record);
+      await pruneLocalBackups();
+      return record;
+    }
+
+    async function createThrottledLocalBackup(source, waitMs = 120000) {
+      const lastAt = backupThrottle.get(source) || 0;
+      if (Date.now() - lastAt < waitMs) {
+        return null;
+      }
+      backupThrottle.set(source, Date.now());
+      return createLocalBackup(source, "auto");
+    }
+
+    function mergeByIdWithTime(existingRows, incomingRows, getTime) {
+      const map = new Map();
+      asArray(existingRows).forEach((item) => {
+        if (item?.id) {
+          map.set(item.id, item);
+        }
+      });
+      asArray(incomingRows).forEach((item) => {
+        if (!item?.id) {
+          return;
+        }
+        const current = map.get(item.id);
+        if (!current || String(getTime(item)) >= String(getTime(current))) {
+          map.set(item.id, item);
+        }
+      });
+      return Array.from(map.values());
+    }
+
+    function mergeSnapshots(currentSnapshot, incomingSnapshot) {
+      const current = normalizeStateSnapshot(currentSnapshot);
+      const incoming = normalizeStateSnapshot(incomingSnapshot);
+      return normalizeStateSnapshot({
+        notes: mergeByIdWithTime(current.notes, incoming.notes, (item) => item.updatedAt || item.createdAt),
+        settings: sanitizeDisplaySettings({ ...current.settings, ...incoming.settings }),
+        fonts: mergeByIdWithTime(current.fonts, incoming.fonts, (item) => item.createdAt),
+        readingEvents: mergeByIdWithTime(current.readingEvents, incoming.readingEvents, (item) => item.endedAt || item.startedAt),
+        meta: {
+          createdAt: current.meta?.createdAt || incoming.meta?.createdAt || nowIso(),
+          lastWriteSource: "backup-merge"
+        }
+      });
+    }
+
+    async function replaceCurrentState(snapshot, source = "backup-restore") {
+      const cleanSnapshot = normalizeStateSnapshot(snapshot);
+      if (storage.mode === "lan") {
+        return storage.replaceRemoteState(cleanSnapshot, source);
+      }
+
+      await persistNotesToDb(cleanSnapshot.notes);
+      await persistDisplaySettingsToDb(cleanSnapshot.settings);
+      await dbReplaceAll(FONTS_STORE, cleanSnapshot.fonts);
+      await dbReplaceAll(READING_EVENTS_STORE, cleanSnapshot.readingEvents);
+      return {
+        ...cleanSnapshot,
+        updatedAt: ""
+      };
+    }
+
+    async function applySnapshot(snapshot, mode = "replace", source = "backup-restore") {
+      const cleanSnapshot = normalizeStateSnapshot(snapshot);
+      if (mode === "merge") {
+        const currentSnapshot = await captureCurrentSnapshot();
+        return replaceCurrentState(mergeSnapshots(currentSnapshot, cleanSnapshot), source);
+      }
+      return replaceCurrentState(cleanSnapshot, source);
+    }
+
+    async function hydrateFromState(state, message = "数据已恢复。") {
+      const cleanState = normalizeStateSnapshot(state);
+      const previousNoteId = notes[currentIndex]?.id || "";
+      notes = cleanState.notes;
+      readingEvents = cleanState.readingEvents;
+      customFonts = cleanState.fonts;
+      displaySettings = cleanState.settings;
+      await registerFonts(customFonts);
+      applyDisplaySettings();
+      updateReadingStats();
+      updateNoteCounts();
+      renderLibrary();
+      renderBookshelf();
+      renderReadingRecords();
+      updateReviewScopeButtons();
+      updateFavoriteButton();
+      updateSyncStatus(message);
+
+      if (!notes.length) {
+        currentIndex = -1;
+        showImportView(message);
+        return;
+      }
+
+      const preferredIndex = findNoteIndexById(previousNoteId);
+      currentIndex = preferredIndex >= 0 ? preferredIndex : 0;
+      elements.importView.classList.add("hidden");
+      elements.reviewView.classList.remove("hidden");
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      displayNoteAt(currentIndex, false);
+      if (!isSettingsOpen()) {
+        startReadingSession(notes[currentIndex].id, "restore");
+      }
+      setStatus(message);
+    }
+
+    function getBackupSourceLabel(source = "") {
+      const labels = {
+        "manual": "手动快照",
+        "manual-snapshot": "手动快照",
+        "csv-import-before-replace": "CSV 导入前",
+        "clear-notes-before": "清空前",
+        "restore-before-replace": "覆盖恢复前",
+        "snapshot-restore-before": "快照恢复前",
+        "note-change": "句子修改",
+        "font-change": "字体修改",
+        "style-change": "显示设置"
+      };
+      return labels[source] || source || "自动快照";
+    }
+
+    async function exportFullBackup() {
+      await commitReadingSession("backup-export");
+      const snapshot = await captureCurrentSnapshot();
+      const envelope = createBackupEnvelope(snapshot, "manual-export");
+      downloadTextFile(`reading-note-reviewer-backup-${formatFileStamp()}.json`, JSON.stringify(envelope, null, 2));
+      setStatus("完整备份已导出。");
+    }
+
+    async function handleBackupFile(file) {
+      if (!file) {
+        return;
+      }
+
+      try {
+        const raw = await file.text();
+        const parsed = JSON.parse(raw);
+        const snapshot = normalizeBackupPayload(parsed);
+        if (!hasSnapshotData(snapshot)) {
+          setStatus("这个备份文件里没有可恢复的数据。");
+          return;
+        }
+
+        const summary = summarizeSnapshot(snapshot);
+        const confirmed = window.confirm(`读取到备份：\n\n句子：${summary.notes} 条\n收藏：${summary.favorites} 条\n字体：${summary.fonts} 个\n阅读记录：${summary.readingEvents} 条\n\n继续导入吗？`);
+        if (!confirmed) {
+          return;
+        }
+
+        const useReplace = window.confirm("选择“确定”会完全覆盖当前数据；选择“取消”会合并导入。");
+        await commitReadingSession("backup-import");
+        await createLocalBackup(useReplace ? "restore-before-replace" : "restore-before-merge", "auto");
+        const state = await applySnapshot(snapshot, useReplace ? "replace" : "merge", useReplace ? "backup-replace" : "backup-merge");
+        await hydrateFromState(state, useReplace ? "备份已覆盖恢复。" : "备份已合并导入。");
+        await renderBackupCenter();
+      } catch (error) {
+        console.error(error);
+        setStatus("备份文件格式无法识别，请确认是本应用导出的 JSON。");
+      } finally {
+        elements.backupInput.value = "";
+      }
+    }
+
+    async function restoreLocalBackup(backupId) {
+      const backups = await loadLocalBackups();
+      const backup = backups.find((item) => item.id === backupId);
+      if (!backup) {
+        setStatus("没有找到这份快照。");
+        return;
+      }
+
+      const summary = backup.summary || summarizeSnapshot(backup.data);
+      const confirmed = window.confirm(`恢复这份快照吗？\n\n创建时间：${formatDateTime(backup.createdAt)}\n句子：${summary.notes} 条\n字体：${summary.fonts} 个\n阅读记录：${summary.readingEvents} 条\n\n当前数据会先自动保存为新快照。`);
+      if (!confirmed) {
+        return;
+      }
+
+      await commitReadingSession("snapshot-restore");
+      await createLocalBackup("snapshot-restore-before", "auto");
+      const state = await applySnapshot(backup.data, "replace", "snapshot-restore");
+      await hydrateFromState(state, "已从本地快照恢复。");
+      await renderBackupCenter();
+    }
+
+    async function deleteLocalBackup(backupId) {
+      if (!window.confirm("确定删除这份本地快照吗？")) {
+        return;
+      }
+      await dbDelete(BACKUPS_STORE, backupId);
+      await renderBackupCenter();
+      setStatus("本地快照已删除。");
+    }
+
+    function getDataHealthReport() {
+      const noteKeys = new Map();
+      const duplicates = [];
+      notes.forEach((note) => {
+        const key = [note.content, note.book, note.author]
+          .map((part) => cleanText(part).replace(/\s+/g, " "))
+          .join("|");
+        const group = noteKeys.get(key) || [];
+        group.push(note);
+        noteKeys.set(key, group);
+      });
+      noteKeys.forEach((group) => {
+        if (group.length > 1) {
+          duplicates.push(group);
+        }
+      });
+
+      const noteIds = new Set(notes.map((note) => note.id));
+      const orphanEvents = readingEvents.filter((event) => !noteIds.has(event.noteId));
+      const largeFonts = customFonts.filter((font) => String(font.dataUrl || "").length > 1024 * 1024);
+      return {
+        emptyNotes: notes.filter((note) => !cleanText(note.content)).length,
+        duplicates,
+        orphanEvents,
+        largeFonts
+      };
+    }
+
+    function renderBackupHealth() {
+      const report = getDataHealthReport();
+      const duplicatePreview = report.duplicates.slice(0, 3).map((group) => `
+        <li class="rounded-[12px] bg-surface px-3 py-2">
+          <span class="block truncate text-ink">${escapeHtml(group[0].content)}</span>
+          <span class="text-xs text-muted">${group.length} 条疑似重复</span>
+        </li>
+      `).join("");
+
+      elements.backupHealthText.textContent = report.emptyNotes || report.duplicates.length || report.orphanEvents.length || report.largeFonts.length
+        ? "发现可检查项"
+        : "状态良好";
+      elements.backupHealthList.innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+          ${[
+            ["空内容", `${report.emptyNotes} 条`],
+            ["疑似重复", `${report.duplicates.length} 组`],
+            ["孤立记录", `${report.orphanEvents.length} 条`],
+            ["大字体", `${report.largeFonts.length} 个`]
+          ].map(([label, value]) => `
+            <div class="metric-card rounded-[16px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3">
+              <p class="text-xs text-muted">${label}</p>
+              <p class="mt-1 text-lg font-semibold text-ink">${value}</p>
+            </div>
+          `).join("")}
+        </div>
+        ${duplicatePreview ? `
+          <div class="rounded-[18px] border border-sage/15 bg-sage/5 p-4">
+            <p class="text-sm font-semibold text-ink">重复项预览</p>
+            <ul class="mt-3 space-y-2 text-sm leading-6 text-muted">${duplicatePreview}</ul>
+          </div>
+        ` : ""}
+      `;
+    }
+
+    async function renderBackupCenter() {
+      if (!elements.backupOverviewGrid) {
+        return;
+      }
+
+      const backups = await loadLocalBackups();
+      const summary = summarizeSnapshot({ notes, fonts: customFonts, readingEvents });
+      const latestBackup = backups[0];
+      elements.backupUpdatedText.textContent = latestBackup ? `最近 ${formatDateTime(latestBackup.createdAt)}` : "暂无快照";
+      elements.backupSnapshotCountText.textContent = `${backups.length} 份`;
+      elements.backupOverviewGrid.innerHTML = [
+        ["句子", `${summary.notes} 条`],
+        ["收藏", `${summary.favorites} 条`],
+        ["字体", `${summary.fonts} 个`],
+        ["阅读记录", `${summary.readingEvents} 条`]
+      ].map(([label, value]) => `
+        <div class="metric-card rounded-[18px] border border-sage/15 bg-sage/5 px-4 py-4">
+          <p class="text-xs leading-5 text-muted">${label}</p>
+          <p class="mt-1 text-xl font-semibold text-ink">${value}</p>
+        </div>
+      `).join("");
+
+      elements.backupSnapshotsList.innerHTML = backups.length ? backups.map((backup) => {
+        const itemSummary = backup.summary || summarizeSnapshot(backup.data);
+        return `
+          <article class="backup-snapshot-card rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-ink">${escapeHtml(getBackupSourceLabel(backup.source))}</p>
+                <p class="mt-1 text-xs leading-5 text-muted">${escapeHtml(formatDateTime(backup.createdAt))}</p>
+              </div>
+              <span class="rounded-full bg-surface px-3 py-1 text-xs text-muted">${escapeHtml(backup.kind || "auto")}</span>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted">
+              <span class="rounded-full bg-surface px-2 py-1 text-center">${itemSummary.notes} 句</span>
+              <span class="rounded-full bg-surface px-2 py-1 text-center">${itemSummary.fonts} 字体</span>
+              <span class="rounded-full bg-surface px-2 py-1 text-center">${itemSummary.readingEvents} 记录</span>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" data-backup-action="restore" data-backup-id="${escapeHtml(backup.id)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">恢复</button>
+              <button type="button" data-backup-action="delete" data-backup-id="${escapeHtml(backup.id)}" class="rounded-full border border-clay/25 px-4 py-2 text-sm text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("") : `
+        <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+          还没有本地快照。高风险操作前会自动保存，也可以手动创建。
+        </div>
+      `;
+
+      if (window.showSaveFilePicker) {
+        elements.desktopBackupPanel.textContent = "当前浏览器支持写入本地文件。点击后选择保存位置，即可生成一份完整备份。";
+        elements.desktopBackupButton.classList.remove("hidden");
+      } else {
+        elements.desktopBackupPanel.textContent = "当前环境不支持绑定本地文件，可使用“导出完整备份”保存数据。";
+        elements.desktopBackupButton.classList.add("hidden");
+      }
+      renderBackupHealth();
+    }
+
+    async function writeBackupToChosenFile() {
+      if (!window.showSaveFilePicker) {
+        setStatus("当前环境不支持写入本地备份文件。");
+        return;
+      }
+      await commitReadingSession("desktop-backup");
+      const envelope = createBackupEnvelope(await captureCurrentSnapshot(), "desktop-file-backup");
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `reading-note-reviewer-backup-${formatFileStamp()}.json`,
+        types: [{
+          description: "JSON backup",
+          accept: { "application/json": [".json"] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(JSON.stringify(envelope, null, 2));
+      await writable.close();
+      setStatus("本地备份文件已写入。");
+    }
+
+    function exportReadingRecordsCsv() {
+      const rows = readingEvents.map((event) => {
+        const note = notes.find((item) => item.id === event.noteId);
+        return {
+          noteId: event.noteId,
+          book: note?.book || "已删除句子",
+          author: note?.author || "",
+          content: note?.content || "",
+          startedAt: event.startedAt,
+          endedAt: event.endedAt,
+          durationMs: event.durationMs,
+          durationText: formatDuration(event.durationMs),
+          dateKey: getEventDateKey(event),
+          source: event.source || "",
+          reason: event.reason || ""
+        };
+      });
+      const csv = Papa.unparse(rows);
+      downloadTextFile(`reading-records-${formatFileStamp()}.csv`, csv, "text/csv;charset=utf-8");
+      setStatus("阅读记录 CSV 已导出。");
+    }
+
+    async function updateMigrationPrompt(remoteState) {
+      if (storage.mode !== "lan" || !elements.syncImportLocalButton) {
+        return;
+      }
+
+      const local = await loadLocalSnapshot();
+      const remoteEmpty = !remoteState.notes.length && !remoteState.fonts.length && !remoteState.readingEvents.length;
+      const localHasData = local.notes.length || local.fonts.length || local.readingEvents.length;
+      elements.syncImportLocalButton.classList.toggle("hidden", !(remoteEmpty && localHasData));
+    }
+
+    async function refreshFromRemote(message = "同步数据已刷新") {
+      if (storage.mode !== "lan") {
+        return;
+      }
+
+      const currentNoteId = notes[currentIndex]?.id || "";
+      await commitReadingSession("remote-refresh");
+      const state = await storage.loadAll();
+      notes = state.notes;
+      readingEvents = state.readingEvents;
+      customFonts = state.fonts;
+      displaySettings = state.settings;
+      await registerFonts(customFonts);
+      applyDisplaySettings();
+      updateReadingStats();
+      updateNoteCounts();
+      renderLibrary();
+      renderBookshelf();
+      renderReadingRecords();
+      await updateMigrationPrompt(state);
+
+      if (!notes.length) {
+        currentIndex = -1;
+        showImportView(message);
+        updateSyncStatus(message);
+        return;
+      }
+
+      const nextIndex = Math.max(0, notes.findIndex((note) => note.id === currentNoteId));
+      if (elements.reviewView.classList.contains("hidden")) {
+        showReviewView();
+      } else {
+        displayNoteAt(nextIndex, false);
+        startReadingSession(notes[nextIndex].id, "remote-refresh");
+      }
+      updateSyncStatus(message);
+    }
+
+    async function importLocalDataToSync() {
+      if (storage.mode !== "lan") {
+        return;
+      }
+
+      const local = await loadLocalSnapshot();
+      const summary = `将本机数据导入同步库？\n\n句子：${local.notes.length} 条\n字体：${local.fonts.length} 个\n阅读记录：${local.readingEvents.length} 条`;
+      if (!window.confirm(summary)) {
+        return;
+      }
+
+      const state = await storage.replaceRemoteState(local, "local-browser-import");
+      notes = state.notes;
+      readingEvents = state.readingEvents;
+      customFonts = state.fonts;
+      displaySettings = state.settings;
+      await registerFonts(customFonts);
+      applyDisplaySettings();
+      updateReadingStats();
+      updateNoteCounts();
+      renderLibrary();
+      renderBookshelf();
+      renderReadingRecords();
+      elements.syncImportLocalButton.classList.add("hidden");
+
+      if (notes.length) {
+        currentIndex = -1;
+        showReviewView();
+      } else {
+        showImportView("同步库仍为空，可以导入 CSV。");
+      }
+      updateSyncStatus("本机数据已导入同步库");
+    }
+
+    function saveCustomSyncAddress() {
+      const origin = normalizeSyncOrigin(elements.syncAddressInput.value);
+      if (!origin) {
+        updateSyncStatus("请输入完整同步地址，例如 http://192.168.1.8:8787");
+        elements.syncAddressInput.focus();
+        return;
+      }
+
+      localStorage.setItem(CUSTOM_SYNC_ORIGIN_KEY, origin);
+      updateSyncStatus("同步地址已保存，正在重新连接...");
+      window.setTimeout(() => window.location.reload(), 350);
+    }
+
+    function clearCustomSyncAddress() {
+      localStorage.removeItem(CUSTOM_SYNC_ORIGIN_KEY);
+      updateSyncStatus("同步地址已清除，正在切回当前模式...");
+      window.setTimeout(() => window.location.reload(), 350);
+    }
+
+    function startReadingSession(noteId, source = "initial") {
+      if (!noteId) {
+        readingSession = null;
+        return;
+      }
+
+      readingSession = {
+        noteId,
+        startedAt: Date.now(),
+        source
+      };
+    }
+
+    async function commitReadingSession(reason = "switch") {
+      if (!readingSession || !db) {
+        return null;
+      }
+
+      const endedAtMs = Date.now();
+      const durationMs = endedAtMs - readingSession.startedAt;
+      const session = readingSession;
+      readingSession = null;
+
+      if (durationMs < MIN_READING_EVENT_MS) {
+        return null;
+      }
+
+      const event = {
+        id: createId("event"),
+        noteId: session.noteId,
+        startedAt: new Date(session.startedAt).toISOString(),
+        endedAt: new Date(endedAtMs).toISOString(),
+        durationMs,
+        source: session.source,
+        reason,
+        dateKey: getDateKey(new Date(endedAtMs))
+      };
+
+      try {
+        const nextEvents = await storage.appendReadingEvents([event], reason);
+        readingEvents = Array.isArray(nextEvents) ? nextEvents : readingEvents.concat(event);
+        updateReadingStats();
+        updateSyncStatus();
+        return event;
+      } catch {
+        updateSyncStatus("阅读记录保存失败，请稍后刷新同步。");
+        return null;
+      }
+    }
+
+    function isSettingsOpen() {
+      return document.body.classList.contains("settings-open");
+    }
+
+    function getCustomFontById(fontId) {
+      return customFonts.find((font) => font.id === fontId);
+    }
+
+    function getActiveFontStack() {
+      if (displaySettings.fontMode === "custom") {
+        const font = registeredFonts.get(displaySettings.customFontId);
+        if (font) {
+          return font.stack;
+        }
+      }
+      return FONT_OPTIONS[displaySettings.font].stack;
+    }
+
+    function updateStyleButtons() {
+      elements.styleChoices.forEach((button) => {
+        const group = button.dataset.styleGroup;
+        let isActive = false;
+
+        if (group === "font") {
+          isActive = displaySettings.fontMode === "builtin" && displaySettings.font === button.dataset.styleValue;
+        } else {
+          isActive = displaySettings[group] === button.dataset.styleValue;
+        }
+
+        button.setAttribute("aria-pressed", String(isActive));
+      });
+    }
+
+    function updateStylePreview() {
+      const size = SIZE_OPTIONS[displaySettings.size];
+      const lineHeight = LINE_HEIGHT_OPTIONS[displaySettings.lineHeight];
+      elements.stylePreviewText.style.fontFamily = getActiveFontStack();
+      elements.stylePreviewText.style.fontSize = size.base;
+      elements.stylePreviewText.style.lineHeight = lineHeight;
+    }
+
+    function applyDisplaySettings() {
+      const size = SIZE_OPTIONS[displaySettings.size];
+      const lineHeight = LINE_HEIGHT_OPTIONS[displaySettings.lineHeight];
+
+      document.documentElement.dataset.theme = displaySettings.theme;
+      document.documentElement.style.setProperty("--note-font-family", getActiveFontStack());
+      document.documentElement.style.setProperty("--note-font-size-base", size.base);
+      document.documentElement.style.setProperty("--note-font-size-sm", size.sm);
+      document.documentElement.style.setProperty("--note-font-size-md", size.md);
+      document.documentElement.style.setProperty("--note-line-height", lineHeight);
+
+      updateStyleButtons();
+      updateStylePreview();
+      renderCustomFonts();
+    }
+
+    async function setDisplaySetting(group, value) {
+      if (group === "font") {
+        if (!FONT_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.fontMode = "builtin";
+        displaySettings.font = value;
+        displaySettings.customFontId = "";
+      } else if (group === "theme") {
+        if (!THEME_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.theme = value;
+      } else if (group === "size") {
+        if (!SIZE_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.size = value;
+      } else if (group === "lineHeight") {
+        if (!LINE_HEIGHT_OPTIONS[value]) {
+          return;
+        }
+        displaySettings.lineHeight = value;
+      }
+
+      applyDisplaySettings();
+      await persistDisplaySettings("display-setting");
+      await createThrottledLocalBackup("style-change");
+      setStatus("显示设置已保存。");
+    }
+
+    async function registerFont(font) {
+      if (registeredFonts.has(font.id)) {
+        return true;
+      }
+
+      if (!window.FontFace) {
+        setStatus("当前浏览器不支持本地字体加载。");
+        return false;
+      }
+
+      try {
+        const family = `ReadingFont_${font.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        const face = new FontFace(family, `url("${font.dataUrl}")`);
+        await face.load();
+        document.fonts.add(face);
+        registeredFonts.set(font.id, {
+          ...font,
+          family,
+          stack: `"${family}", ${FONT_OPTIONS.serif.stack}`
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function registerFonts(fonts) {
+      for (const font of fonts) {
+        await registerFont(font);
+      }
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function isValidFontFile(file) {
+      return /\.(ttf|otf|woff2?)$/i.test(file.name) || /^font\//.test(file.type);
+    }
+
+    async function importFontFile(file) {
+      if (!file) {
+        return;
+      }
+
+      if (!isValidFontFile(file)) {
+        setStatus("请选择 ttf、otf、woff 或 woff2 字体文件。");
+        return;
+      }
+
+      setStatus("正在导入本地字体...");
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        const font = {
+          id: createId("font"),
+          name: cleanText(file.name.replace(/\.[^.]+$/, "")) || "本地字体",
+          fileName: file.name,
+          mimeType: file.type || "font/unknown",
+          dataUrl,
+          createdAt: nowIso()
+        };
+
+        const loaded = await registerFont(font);
+        if (!loaded) {
+          setStatus("字体加载失败，请换一个字体文件。");
+          return;
+        }
+
+        customFonts = loadAndSortFonts(customFonts.concat(font));
+        customFonts = await storage.saveFonts(customFonts, "font-import");
+
+        displaySettings.fontMode = "custom";
+        displaySettings.customFontId = font.id;
+        await persistDisplaySettings("font-import");
+        await createThrottledLocalBackup("font-change");
+        applyDisplaySettings();
+        setStatus("本地字体已导入并应用。");
+      } catch {
+        setStatus("字体导入失败，请重新选择文件。");
+      } finally {
+        elements.fontInput.value = "";
+      }
+    }
+
+    function loadAndSortFonts(fonts) {
+      return [...fonts].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    }
+
+    function renderCustomFonts() {
+      if (!elements.customFontList) {
+        return;
+      }
+
+      if (!customFonts.length) {
+        elements.customFontList.innerHTML = `
+          <div class="rounded-[16px] border border-dashed border-sage/25 bg-surfaceSoft px-4 py-5 text-sm leading-6 text-muted">
+            还没有导入本地字体。
+          </div>
+        `;
+        return;
+      }
+
+      elements.customFontList.innerHTML = customFonts.map((font) => {
+        const isActive = displaySettings.fontMode === "custom" && displaySettings.customFontId === font.id;
+        const registered = registeredFonts.get(font.id);
+        const previewStyle = registered ? `style="font-family: ${registered.stack}"` : "";
+        return `
+          <article class="rounded-[16px] border border-borderSoft/10 bg-surfaceSoft p-3">
+            <div class="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                class="font-choice flex-1 rounded-[12px] border border-borderSoft/10 bg-surface px-3 py-2 text-left text-sm text-ink transition hover:border-sage/35 focus:outline-none focus:ring-4 focus:ring-sage/15"
+                data-font-action="select"
+                data-font-id="${escapeHtml(font.id)}"
+                aria-pressed="${isActive}"
+              >
+                <span class="block font-semibold">${escapeHtml(font.name)}</span>
+                <span class="mt-1 block text-xs text-muted" ${previewStyle}>春水煎茶</span>
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-clay/20 px-3 py-2 text-xs text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15"
+                data-font-action="delete"
+                data-font-id="${escapeHtml(font.id)}"
+              >
+                删除
+              </button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function selectCustomFont(fontId) {
+      const font = getCustomFontById(fontId);
+      if (!font) {
+        setStatus("没有找到这个本地字体。");
+        return;
+      }
+
+      const loaded = await registerFont(font);
+      if (!loaded) {
+        setStatus("字体加载失败，暂时无法应用。");
+        return;
+      }
+
+      displaySettings.fontMode = "custom";
+      displaySettings.customFontId = font.id;
+      applyDisplaySettings();
+      await persistDisplaySettings("font-select");
+      await createThrottledLocalBackup("style-change");
+      setStatus("本地字体已应用。");
+    }
+
+    async function deleteCustomFont(fontId) {
+      const font = getCustomFontById(fontId);
+      if (!font) {
+        return;
+      }
+
+      if (!window.confirm(`确定删除字体“${font.name}”吗？`)) {
+        return;
+      }
+
+      customFonts = await storage.deleteFont(fontId);
+      await createThrottledLocalBackup("font-change");
+
+      if (displaySettings.fontMode === "custom" && displaySettings.customFontId === fontId) {
+        displaySettings.fontMode = "builtin";
+        displaySettings.font = "serif";
+        displaySettings.customFontId = "";
+        await persistDisplaySettings("font-delete");
+      }
+
+      applyDisplaySettings();
+      setStatus("本地字体已删除。");
+    }
+
+    function showSettingsView(viewName) {
+      elements.settingsViews.forEach((view) => {
+        view.classList.toggle("hidden", view.dataset.settingsView !== viewName);
+      });
+
+      if (viewName === "library") {
+        resetNoteForm();
+        renderLibrary();
+      }
+
+      if (viewName === "bookshelf") {
+        renderBookshelf();
+      }
+
+      if (viewName === "style") {
+        updateStyleButtons();
+        updateStylePreview();
+        renderCustomFonts();
+      }
+
+      if (viewName === "records") {
+        renderReadingRecords();
+      }
+
+      if (viewName === "backup") {
+        renderBackupCenter().catch((error) => {
+          console.error(error);
+          setStatus("备份中心加载失败，请稍后重试。");
+        });
+      }
+
+      if (viewName === "home") {
+        updateSyncStatus();
+      }
+
+      setStatus("");
+    }
+
+    function openSettings() {
+      updateNoteCounts();
+      showSettingsView("home");
+      document.body.classList.add("settings-open");
+      elements.settingsButton.setAttribute("aria-expanded", "true");
+      elements.settingsPanel.setAttribute("aria-hidden", "false");
+      elements.settingsCloseButton.focus();
+    }
+
+    function closeSettings() {
+      document.body.classList.remove("settings-open");
+      elements.settingsButton.setAttribute("aria-expanded", "false");
+      elements.settingsPanel.setAttribute("aria-hidden", "true");
+    }
+
+    function showImportView(message = "") {
+      elements.reviewView.classList.add("hidden");
+      closeSettings();
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      elements.importView.classList.remove("hidden");
+      updateNoteCounts();
+      setStatus(message);
+      elements.csvInput.value = "";
+    }
+
+    function showReviewView() {
+      elements.importView.classList.add("hidden");
+      elements.reviewView.classList.remove("hidden");
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      updateNoteCounts();
+      closeSettings();
+      showRandomNote("initial");
+    }
+
+    async function startBookReview(bookKey) {
+      const group = getBookGroupByKey(bookKey);
+      if (!group?.notes.length) {
+        setStatus("这本书暂时没有可回顾的摘录。");
+        return;
+      }
+
+      reviewScope = "book";
+      activeBookKey = bookKey;
+      activeBookshelfKey = bookKey;
+      elements.importView.classList.add("hidden");
+      elements.reviewView.classList.remove("hidden");
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      closeSettings();
+      const currentBookNote = group.notes.find((note) => note.id === notes[currentIndex]?.id) || group.notes[0];
+      await switchToNote(findNoteIndexById(currentBookNote.id), "book", "random");
+      setStatus(`已进入《${group.book}》回顾。`);
+    }
+
+    function displayNoteAt(index, animation = "random") {
+      const note = notes[index];
+      if (!note) {
+        return;
+      }
+
+      currentIndex = index;
+      const source = note.author ? `《${note.book}》${note.author}` : `《${note.book}》`;
+
+      elements.noteText.textContent = note.content;
+      elements.noteSource.textContent = `—— ${source}`;
+      updateFavoriteButton();
+
+      if (animation) {
+        const isDirectionalAnimation = animation === "next" || animation === "previous";
+        if (isDirectionalAnimation) {
+          isAnimatingCard = true;
+        }
+        elements.quoteWrap.classList.remove("quote-swap", "quote-swap-next", "quote-swap-previous");
+        void elements.quoteWrap.offsetWidth;
+        const animationClass = animation === "next"
+          ? "quote-swap-next"
+          : animation === "previous"
+            ? "quote-swap-previous"
+            : "quote-swap";
+        elements.quoteWrap.classList.add(animationClass);
+        window.setTimeout(() => {
+          isAnimatingCard = false;
+        }, isDirectionalAnimation ? 430 : 360);
+      }
+    }
+
+    function getRandomIndex() {
+      const pool = getReviewPool();
+      if (pool.length <= 1) {
+        return pool[0] ? findNoteIndexById(pool[0].id) : 0;
+      }
+
+      const currentNoteId = notes[currentIndex]?.id || "";
+      let nextNote = pool.find((note) => note.id !== currentNoteId) || pool[0];
+      while (nextNote.id === currentNoteId && pool.length > 1) {
+        nextNote = pool[Math.floor(Math.random() * pool.length)];
+      }
+      return findNoteIndexById(nextNote.id);
+    }
+
+    async function switchToNote(index, source = "random", animation = "random") {
+      if (isAnimatingCard) {
+        return;
+      }
+
+      if (!notes.length) {
+        await commitReadingSession("empty");
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      const boundedIndex = (index + notes.length) % notes.length;
+      await commitReadingSession("switch");
+      displayNoteAt(boundedIndex, animation);
+      startReadingSession(notes[boundedIndex].id, source);
+      updateNoteCounts();
+    }
+
+    function showRandomNote(source = "random") {
+      if (!notes.length) {
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      switchToNote(getRandomIndex(), source, "random");
+    }
+
+    function showNextNote(source = "next") {
+      if (!notes.length) {
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      const pool = getReviewPool();
+      const poolIndex = getReviewPoolIndex(pool);
+      const nextNote = pool[poolIndex < 0 ? 0 : (poolIndex + 1) % pool.length];
+      switchToNote(findNoteIndexById(nextNote.id), source, "next");
+    }
+
+    function showPreviousNote(source = "previous") {
+      if (!notes.length) {
+        showImportView("没有可回顾的笔记，请重新导入 CSV 文件。");
+        return;
+      }
+
+      const pool = getReviewPool();
+      const poolIndex = getReviewPoolIndex(pool);
+      const previousNote = pool[poolIndex < 0 ? pool.length - 1 : (poolIndex - 1 + pool.length) % pool.length];
+      switchToNote(findNoteIndexById(previousNote.id), source, "previous");
+    }
+
+    function parseCsvFile(file) {
+      if (!file) {
+        return;
+      }
+
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setStatus("请选择 .csv 文件。");
+        return;
+      }
+
+      setStatus("正在解析 CSV...");
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: "greedy",
+        transformHeader: (header) => cleanText(header),
+        complete: async (result) => {
+          if (result.errors.length) {
+            setStatus("CSV 解析时遇到格式问题，请检查文件后再试。");
+            return;
+          }
+
+          const extracted = result.data.map(normalizeRow).filter(Boolean);
+
+          if (!extracted.length) {
+            setStatus("没有找到有效的“笔记内容”列数据。");
+            return;
+          }
+
+          try {
+            await commitReadingSession("reimport");
+            if (notes.length || readingEvents.length || customFonts.length) {
+              await createLocalBackup("csv-import-before-replace", "auto");
+            }
+            await persistNotes(extracted, "csv-import");
+            currentIndex = -1;
+            setStatus("");
+            showReviewView();
+          } catch {
+            setStatus("保存失败，请确认同步服务可用后重试。");
+          }
+        },
+        error: () => {
+          setStatus("读取文件失败，请重新选择 CSV 文件。");
+        }
+      });
+    }
+
+    function resetNoteForm() {
+      editingNoteId = null;
+      elements.libraryFormTitle.textContent = "新增句子";
+      elements.saveNoteButton.textContent = "保存句子";
+      elements.cancelEditButton.classList.add("hidden");
+      elements.noteForm.reset();
+    }
+
+    function findNoteIndexById(noteId) {
+      return notes.findIndex((note) => note.id === noteId);
+    }
+
+    function fillNoteForm(noteId) {
+      const note = notes.find((item) => item.id === noteId);
+      if (!note) {
+        return;
+      }
+
+      editingNoteId = noteId;
+      elements.libraryFormTitle.textContent = "编辑句子";
+      elements.saveNoteButton.textContent = "更新句子";
+      elements.cancelEditButton.classList.remove("hidden");
+      elements.noteContentInput.value = note.content;
+      elements.noteBookInput.value = note.book === "未知书名" ? "" : note.book;
+      elements.noteAuthorInput.value = note.author;
+      elements.noteContentInput.focus();
+    }
+
+    function renderLibrary() {
+      updateNoteCounts();
+
+      if (!notes.length) {
+        elements.libraryList.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+            句子库还是空的，可以先新增一句，或重新导入 CSV。
+          </div>
+        `;
+        return;
+      }
+
+      elements.libraryList.innerHTML = notes.map((note) => {
+        const source = note.author ? `《${note.book}》${note.author}` : `《${note.book}》`;
+        const stats = readingStats.byNote.get(note.id);
+        const viewCount = stats?.viewCount || 0;
+        const duration = stats?.totalDurationMs ? formatDuration(stats.totalDurationMs) : "0秒";
+        const lastViewed = stats?.lastViewedAt ? formatDateTime(stats.lastViewedAt) : "尚未浏览";
+        const favoriteLabel = note.favorite ? "取消收藏" : "收藏";
+        return `
+          <article class="library-note-card rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4 transition hover:border-sage/25">
+            <div class="flex items-start gap-3">
+              <p class="note-preview min-w-0 flex-1 text-sm leading-7 text-ink">${escapeHtml(note.content)}</p>
+              <button type="button" data-note-action="favorite" data-note-id="${escapeHtml(note.id)}" class="shrink-0 rounded-full border border-sage/20 px-3 py-1.5 text-sm ${note.favorite ? "text-sage" : "text-muted"} transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15" aria-pressed="${note.favorite}" aria-label="${favoriteLabel}">${note.favorite ? "★" : "☆"}</button>
+            </div>
+            <p class="mt-2 text-xs leading-5 text-muted">${escapeHtml(source)}</p>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted">
+              <span class="rounded-full bg-surface px-3 py-2 text-center">${viewCount} 次</span>
+              <span class="rounded-full bg-surface px-3 py-2 text-center">${duration}</span>
+              <span class="rounded-full bg-surface px-3 py-2 text-center">${escapeHtml(lastViewed)}</span>
+            </div>
+            <details class="mt-3 rounded-[14px] bg-surface px-3 py-2 text-sm leading-7 text-muted">
+              <summary class="cursor-pointer text-sage">详情</summary>
+              <p class="mt-2 whitespace-pre-wrap text-ink">${escapeHtml(note.content)}</p>
+              <p class="mt-2 text-xs text-muted">累计停留 ${duration}，浏览 ${viewCount} 次，最近 ${escapeHtml(lastViewed)}</p>
+            </details>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" data-note-action="edit" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">编辑</button>
+              <button type="button" data-note-action="delete" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-clay/25 px-4 py-2 text-sm text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderBookshelfMetric(label, value, hint) {
+      return `
+        <div class="metric-card rounded-[16px] border border-borderSoft/10 bg-surfaceSoft p-3">
+          <p class="text-[0.68rem] leading-4 text-muted">${escapeHtml(label)}</p>
+          <p class="mt-1 text-lg font-semibold text-ink">${escapeHtml(value)}</p>
+          <p class="mt-1 text-[0.68rem] leading-4 text-muted">${escapeHtml(hint)}</p>
+        </div>
+      `;
+    }
+
+    function renderBookshelf() {
+      updateReadingStats();
+      const query = cleanText(elements.bookshelfSearchInput?.value).toLowerCase();
+      const groups = getBookGroups();
+      const visibleGroups = groups.filter((group) => {
+        if (!query) {
+          return true;
+        }
+        return `${group.book} ${group.author}`.toLowerCase().includes(query);
+      });
+
+      elements.bookshelfCountText.textContent = `${groups.length} 本书 · ${notes.length} 条摘录`;
+      elements.bookshelfSummaryGrid.innerHTML = [
+        renderBookshelfMetric("书籍", `${groups.length} 本`, "按书名与作者归并"),
+        renderBookshelfMetric("摘录", `${notes.length} 条`, "当前句子库"),
+        renderBookshelfMetric("收藏", `${notes.filter((note) => note.favorite).length} 条`, "星标摘录"),
+        renderBookshelfMetric("阅读", formatShortDuration(readingStats.totalDurationMs), `${readingStats.totalViews} 次浏览`)
+      ].join("");
+
+      if (activeBookshelfKey && getBookGroupByKey(activeBookshelfKey)) {
+        renderBookDetail(activeBookshelfKey);
+        return;
+      }
+
+      activeBookshelfKey = "";
+      elements.bookshelfListPanel.classList.remove("hidden");
+      elements.bookDetailPanel.classList.add("hidden");
+
+      if (!visibleGroups.length) {
+        elements.bookshelfList.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+            ${groups.length ? "没有匹配的书，可以换个关键词。" : "书架还是空的，可以先导入 CSV 或在句子库新增摘录。"}
+          </div>
+        `;
+        return;
+      }
+
+      elements.bookshelfList.innerHTML = visibleGroups.map((group) => {
+        const source = getBookSource(group.book, group.author);
+        const preview = group.notes[0]?.content || "";
+        const lastViewed = group.lastViewedAt ? formatDateTime(group.lastViewedAt) : "尚未浏览";
+        return `
+          <article class="book-card rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4 transition hover:border-sage/25">
+            <div class="flex gap-3">
+              <div class="book-spine h-16 w-3 shrink-0 rounded-full" aria-hidden="true"></div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <h4 class="truncate text-base font-semibold text-ink">${escapeHtml(group.book)}</h4>
+                    <p class="mt-1 text-xs leading-5 text-muted">${escapeHtml(group.author || "作者未记录")}</p>
+                  </div>
+                  <span class="shrink-0 rounded-full bg-sage/10 px-3 py-1 text-xs text-sage">${group.noteCount} 条</span>
+                </div>
+                <p class="book-preview mt-3 text-sm leading-6 text-ink">${escapeHtml(preview)}</p>
+                <p class="mt-2 text-xs leading-5 text-muted">${escapeHtml(source)} · 最近 ${escapeHtml(lastViewed)}</p>
+                <div class="book-actions mt-3 flex flex-wrap gap-2">
+                  <button type="button" data-book-action="open" data-book-key="${escapeHtml(group.key)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">查看摘录</button>
+                  <button type="button" data-book-action="review" data-book-key="${escapeHtml(group.key)}" class="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20">回顾此书</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderBookDetail(bookKey) {
+      const group = getBookGroupByKey(bookKey);
+      if (!group) {
+        activeBookshelfKey = "";
+        renderBookshelf();
+        return;
+      }
+
+      elements.bookshelfListPanel.classList.add("hidden");
+      elements.bookDetailPanel.classList.remove("hidden");
+      elements.bookDetailTitle.textContent = group.book;
+      elements.bookDetailMeta.textContent = `${group.author || "作者未记录"} · ${group.noteCount} 条摘录`;
+      elements.bookDetailSummaryGrid.innerHTML = [
+        renderBookshelfMetric("摘录", `${group.noteCount} 条`, "这本书"),
+        renderBookshelfMetric("收藏", `${group.favoriteCount} 条`, "星标摘录"),
+        renderBookshelfMetric("停留", formatShortDuration(group.totalDurationMs), `${group.viewCount} 次浏览`),
+        renderBookshelfMetric("最近", group.lastViewedAt ? formatDateTime(group.lastViewedAt) : "尚未浏览", "阅读记录")
+      ].join("");
+
+      elements.bookDetailNotes.innerHTML = group.notes.map((note) => {
+        const stats = readingStats.byNote.get(note.id);
+        const viewCount = stats?.viewCount || 0;
+        const duration = stats?.totalDurationMs ? formatDuration(stats.totalDurationMs) : "0秒";
+        const lastViewed = stats?.lastViewedAt ? formatDateTime(stats.lastViewedAt) : "尚未浏览";
+        return `
+          <article class="book-detail-note-card rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4">
+            <div class="flex items-start gap-3">
+              <p class="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-7 text-ink">${escapeHtml(note.content)}</p>
+              <button type="button" data-book-note-action="favorite" data-note-id="${escapeHtml(note.id)}" class="shrink-0 rounded-full border border-sage/20 px-3 py-1.5 text-sm ${note.favorite ? "text-sage" : "text-muted"} transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15" aria-pressed="${note.favorite}" aria-label="${note.favorite ? "取消收藏" : "收藏"}">${note.favorite ? "★" : "☆"}</button>
+            </div>
+            <p class="mt-3 text-xs leading-5 text-muted">累计停留 ${escapeHtml(duration)} · 浏览 ${viewCount} 次 · 最近 ${escapeHtml(lastViewed)}</p>
+            <div class="book-actions mt-3 flex flex-wrap gap-2">
+              <button type="button" data-book-note-action="edit" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">编辑</button>
+              <button type="button" data-book-note-action="delete" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-clay/25 px-4 py-2 text-sm text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderRecordCharts() {
+      const dailySeries = getDailyReadingSeries(readingEvents, 7);
+      const maxDailyDuration = Math.max(0, ...dailySeries.map((item) => item.durationMs));
+      const activeDays = dailySeries.filter((item) => item.durationMs > 0).length;
+      const weeklyDuration = dailySeries.reduce((sum, item) => sum + item.durationMs, 0);
+      const topItems = readingStats.sortedNotes.slice(0, 5);
+      const maxTopDuration = Math.max(0, ...topItems.map((item) => item.totalDurationMs));
+
+      const dailyBars = dailySeries.map((item) => {
+        const height = getPercent(item.durationMs, maxDailyDuration, item.durationMs ? 8 : 3);
+        const duration = item.durationMs ? formatShortDuration(item.durationMs) : "0秒";
+        return `
+          <div class="min-w-0 text-center" title="${escapeHtml(item.label)} ${escapeHtml(duration)}">
+            <div class="records-daily-track" aria-hidden="true">
+              <div class="records-daily-fill" style="height: ${height}%"></div>
+            </div>
+            <p class="mt-2 truncate text-[0.68rem] leading-4 text-muted">${escapeHtml(item.label)}</p>
+            <p class="truncate text-[0.66rem] leading-4 text-ink">${escapeHtml(duration)}</p>
+          </div>
+        `;
+      }).join("");
+
+      const topRows = topItems.length ? topItems.map((item, index) => {
+        const note = notes.find((candidate) => candidate.id === item.noteId);
+        const label = note?.book || "已删除句子";
+        const percent = getPercent(item.totalDurationMs, maxTopDuration, 6);
+        return `
+          <div class="rounded-[14px] bg-surface/72 px-3 py-3" role="listitem">
+            <div class="flex items-center justify-between gap-3 text-xs">
+              <span class="min-w-0 truncate text-ink">${index + 1}. ${escapeHtml(label)}</span>
+              <span class="shrink-0 text-muted">${formatShortDuration(item.totalDurationMs)}</span>
+            </div>
+            <div class="records-top-track mt-2" aria-hidden="true">
+              <div class="records-top-fill" style="width: ${percent}%"></div>
+            </div>
+          </div>
+        `;
+      }).join("") : `
+        <div class="rounded-[14px] border border-dashed border-sage/25 bg-surface/60 px-4 py-6 text-center text-sm leading-6 text-muted">
+          暂无排行数据
+        </div>
+      `;
+
+      elements.recordsChartsGrid.innerHTML = `
+        <article class="records-chart-card">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-ink">近 7 日时长</p>
+              <p class="mt-1 text-xs leading-5 text-muted">共 ${formatShortDuration(weeklyDuration)}，${activeDays} 天有记录</p>
+            </div>
+            <span class="rounded-full bg-sage/10 px-3 py-1 text-xs text-sage">${readingStats.todayViews} 次今日浏览</span>
+          </div>
+          <div class="records-daily-bars mt-4" role="img" aria-label="近 7 日每日阅读时长柱状图">
+            ${dailyBars}
+          </div>
+        </article>
+
+        <article class="records-chart-card">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-ink">停留排行</p>
+              <p class="mt-1 text-xs leading-5 text-muted">按累计停留时间排序</p>
+            </div>
+            <span class="rounded-full bg-surface px-3 py-1 text-xs text-muted">${topItems.length} 条</span>
+          </div>
+          <div class="mt-3 space-y-2" role="list" aria-label="累计停留时间排行">
+            ${topRows}
+          </div>
+        </article>
+      `;
+    }
+
+    function renderReadingRecords() {
+      updateReadingStats();
+
+      elements.recordsSummaryGrid.innerHTML = [
+        ["今日时长", formatShortDuration(readingStats.todayDurationMs), "今天累计停留"],
+        ["今日浏览", `${readingStats.todayViews} 次`, "切换或停留记录"],
+        ["今日句子", `${readingStats.todayUniqueNotes} 条`, "去重后的句子数"],
+        ["累计时长", formatShortDuration(readingStats.totalDurationMs), `${readingStats.totalViews} 次浏览`]
+      ].map(([label, value, hint]) => `
+        <div class="metric-card rounded-[18px] border border-sage/15 bg-sage/5 px-4 py-4">
+          <p class="text-xs leading-5 text-muted">${label}</p>
+          <p class="mt-1 text-xl font-semibold text-ink">${value}</p>
+          <p class="mt-1 text-[0.68rem] leading-4 text-muted">${hint}</p>
+        </div>
+      `).join("");
+
+      renderRecordCharts();
+
+      elements.recordsCountText.textContent = `${readingStats.sortedNotes.length} 条`;
+      elements.recordsUpdatedText.textContent = readingEvents.length ? "实时统计" : "暂无记录";
+
+      if (!readingStats.sortedNotes.length) {
+        elements.recordsList.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+            还没有阅读记录。开始回顾几条句子后，这里会显示停留时间。
+          </div>
+        `;
+        return;
+      }
+
+      const maxRecordDuration = readingStats.sortedNotes[0]?.totalDurationMs || 0;
+      elements.recordsList.innerHTML = readingStats.sortedNotes.map((item, index) => {
+        const note = notes.find((candidate) => candidate.id === item.noteId);
+        const content = note?.content || "这条句子已被删除";
+        const source = getNoteSource(note);
+        const avgDurationMs = item.viewCount ? item.totalDurationMs / item.viewCount : 0;
+        const percent = getPercent(item.totalDurationMs, maxRecordDuration, 6);
+        const recentEvents = item.events.map((event) => `
+          <li class="flex items-center justify-between gap-3 rounded-[12px] bg-surface px-3 py-2">
+            <span>${formatDateTime(event.endedAt)}</span>
+            <span class="shrink-0 font-medium text-ink">${formatDuration(event.durationMs)}</span>
+          </li>
+        `).join("");
+
+        return `
+          <details class="record-detail-card group rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4 transition hover:border-sage/25">
+            <summary class="cursor-pointer list-none">
+              <div class="flex items-start gap-3">
+                <span class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sage/10 text-sm font-semibold text-sage">${index + 1}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="note-preview text-sm leading-7 text-ink">${escapeHtml(content)}</span>
+                  <span class="mt-1 block text-xs leading-5 text-muted">${escapeHtml(source)}</span>
+                  <span class="mt-3 block records-top-track" aria-hidden="true">
+                    <span class="records-top-fill block" style="width: ${percent}%"></span>
+                  </span>
+                  <span class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted">
+                    <span class="rounded-full bg-surface px-2 py-1 text-center">${item.viewCount} 次</span>
+                    <span class="rounded-full bg-surface px-2 py-1 text-center">${formatDuration(item.totalDurationMs)}</span>
+                    <span class="rounded-full bg-surface px-2 py-1 text-center">均 ${formatDuration(avgDurationMs)}</span>
+                  </span>
+                </span>
+                <span class="mt-1 shrink-0 text-base text-sage transition group-open:rotate-90" aria-hidden="true">›</span>
+              </div>
+            </summary>
+            <div class="mt-3 rounded-[14px] border border-borderSoft/10 bg-surface/50 px-3 py-3">
+              <div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
+                <span>单次停留明细</span>
+                <span>最近 ${escapeHtml(formatDateTime(item.lastViewedAt))}</span>
+              </div>
+              <ul class="max-h-56 space-y-2 overflow-y-auto pr-1 text-xs leading-5 text-muted">
+              ${recentEvents}
+              </ul>
+            </div>
+          </details>
+        `;
+      }).join("");
+    }
+
+    async function refreshAfterLibraryChange(message) {
+      updateNoteCounts();
+      renderLibrary();
+      renderBookshelf();
+
+      if (!notes.length) {
+        currentIndex = -1;
+        reviewScope = "all";
+        activeBookKey = "";
+        activeBookshelfKey = "";
+        showImportView(message);
+        return;
+      }
+
+      if (reviewScope === "book") {
+        const activeGroup = getBookGroupByKey(activeBookKey);
+        if (!activeGroup) {
+          reviewScope = "all";
+          activeBookKey = "";
+        } else if (!activeGroup.notes.some((note) => note.id === notes[currentIndex]?.id)) {
+          currentIndex = findNoteIndexById(activeGroup.notes[0].id);
+        }
+      }
+
+      if (currentIndex < 0 || currentIndex >= notes.length) {
+        currentIndex = 0;
+      }
+
+      displayNoteAt(currentIndex, false);
+      setStatus(message);
+    }
+
+    async function handleNoteFormSubmit(event) {
+      event.preventDefault();
+
+      const existingNote = editingNoteId ? notes.find((note) => note.id === editingNoteId) : null;
+      const note = createNote({
+        id: existingNote?.id,
+        content: elements.noteContentInput.value,
+        book: elements.noteBookInput.value,
+        author: elements.noteAuthorInput.value,
+        chapter: existingNote?.chapter,
+        remark: existingNote?.remark,
+        createdAt: existingNote?.createdAt,
+        updatedAt: nowIso(),
+        favorite: existingNote?.favorite
+      });
+
+      if (!note) {
+        setStatus("笔记内容不能为空。");
+        elements.noteContentInput.focus();
+        return;
+      }
+
+      if (!editingNoteId) {
+        notes.push(note);
+        await persistNotes(notes, "note-create");
+        await createThrottledLocalBackup("note-change");
+        if (currentIndex < 0) {
+          currentIndex = findNoteIndexById(note.id);
+        }
+        resetNoteForm();
+        await refreshAfterLibraryChange("已新增句子。");
+        return;
+      }
+
+      const updatedIndex = findNoteIndexById(editingNoteId);
+      if (updatedIndex >= 0) {
+        notes[updatedIndex] = note;
+        await persistNotes(notes, "note-edit");
+        await createThrottledLocalBackup("note-change");
+      }
+
+      resetNoteForm();
+      await refreshAfterLibraryChange("已更新句子。");
+    }
+
+    async function toggleFavorite(noteId) {
+      const index = findNoteIndexById(noteId);
+      if (index < 0) {
+        return;
+      }
+
+      notes[index] = {
+        ...notes[index],
+        favorite: !notes[index].favorite,
+        updatedAt: nowIso()
+      };
+      await persistNotes(notes, "note-favorite");
+      await createThrottledLocalBackup("note-change");
+      renderLibrary();
+      renderBookshelf();
+      updateFavoriteButton();
+      setStatus(notes[index].favorite ? "已加入收藏。" : "已取消收藏。");
+    }
+
+    async function deleteNote(noteId) {
+      const note = notes.find((item) => item.id === noteId);
+      if (!note) {
+        return;
+      }
+
+      if (!window.confirm("确定删除这条句子吗？")) {
+        return;
+      }
+
+      const deletedIndex = findNoteIndexById(noteId);
+      const deletedCurrent = deletedIndex === currentIndex;
+      if (deletedCurrent) {
+        await commitReadingSession("delete-current");
+      }
+      notes = await storage.deleteNote(noteId);
+      await createThrottledLocalBackup("note-change");
+
+      if (!notes.length) {
+        resetNoteForm();
+        await refreshAfterLibraryChange("句子库已清空，可以重新导入。");
+        return;
+      }
+
+      if (deletedIndex < currentIndex) {
+        currentIndex -= 1;
+      }
+
+      if (deletedCurrent) {
+        currentIndex = Math.min(deletedIndex, notes.length - 1);
+      }
+
+      resetNoteForm();
+      await refreshAfterLibraryChange("已删除句子。");
+      if (deletedCurrent && notes[currentIndex]) {
+        startReadingSession(notes[currentIndex].id, "after-delete");
+      }
+    }
+
+    async function clearNotes() {
+      if (notes.length && !window.confirm("确定清空句子库吗？主题和字体设置会保留。")) {
+        return;
+      }
+
+      await commitReadingSession("clear-notes");
+      if (notes.length || readingEvents.length) {
+        await createLocalBackup("clear-notes-before", "auto");
+      }
+      notes = await storage.clearNotes("clear-notes");
+      currentIndex = -1;
+      reviewScope = "all";
+      activeBookKey = "";
+      activeBookshelfKey = "";
+      resetNoteForm();
+      renderBookshelf();
+      updateSyncStatus();
+      showImportView("句子库已清空，可以重新导入。");
+    }
+
+    function getTouchById(touchList, touchId) {
+      if (!touchList || touchId === undefined || touchId === null) {
+        return null;
+      }
+
+      return Array.from(touchList).find((touch) => touch.identifier === touchId) || null;
+    }
+
+    function getGesturePoint(event) {
+      if (event.changedTouches || event.touches) {
+        const touchId = swipeStart?.touchId;
+        const touch = getTouchById(event.changedTouches, touchId)
+          || getTouchById(event.touches, touchId)
+          || event.changedTouches?.[0]
+          || event.touches?.[0];
+
+        if (!touch) {
+          return null;
+        }
+
+        return {
+          x: touch.clientX,
+          y: touch.clientY,
+          touchId: touch.identifier
+        };
+      }
+
+      return {
+        x: event.clientX,
+        y: event.clientY,
+        pointerId: event.pointerId
+      };
+    }
+
+    function canStartSwipe(event) {
+      const isInteractiveElement = event.target?.closest?.("button, input, textarea, select, a, summary");
+      return !isSettingsOpen() && notes.length > 0 && !isAnimatingCard && !isInteractiveElement;
+    }
+
+    function resetSwipe() {
+      swipeStart = null;
+    }
+
+    function isSameSwipe(event, inputType) {
+      if (!swipeStart || swipeStart.inputType !== inputType) {
+        return false;
+      }
+
+      if (inputType === "pointer" && event.pointerId !== undefined && swipeStart.pointerId !== event.pointerId) {
+        return false;
+      }
+
+      return true;
+    }
+
+    function beginSwipe(event, inputType = "pointer") {
+      if (inputType === "pointer" && HAS_TOUCH_INPUT && event.pointerType === "touch") {
+        return;
+      }
+
+      if (!canStartSwipe(event) || event.pointerType === "mouse") {
+        return;
+      }
+
+      const point = getGesturePoint(event);
+      if (!point) {
+        return;
+      }
+
+      swipeStart = {
+        x: point.x,
+        y: point.y,
+        currentX: point.x,
+        currentY: point.y,
+        inputType,
+        pointerId: point.pointerId,
+        touchId: point.touchId,
+        horizontal: false
+      };
+
+      if (inputType === "pointer" && point.pointerId !== undefined) {
+        try {
+          event.currentTarget.setPointerCapture?.(point.pointerId);
+        } catch {
+          // Some mobile browsers expose Pointer Events without capture support.
+        }
+      }
+    }
+
+    function moveSwipe(event, inputType = "pointer") {
+      if (!isSameSwipe(event, inputType)) {
+        return;
+      }
+
+      const point = getGesturePoint(event);
+      if (!point) {
+        resetSwipe();
+        return;
+      }
+
+      swipeStart.currentX = point.x;
+      swipeStart.currentY = point.y;
+
+      const deltaX = point.x - swipeStart.x;
+      const deltaY = point.y - swipeStart.y;
+      if (!swipeStart.horizontal && Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY) * SWIPE_AXIS_RATIO) {
+        swipeStart.horizontal = true;
+      }
+
+      if (swipeStart.horizontal && event.cancelable) {
+        event.preventDefault();
+      }
+    }
+
+    function endSwipe(event, inputType = "pointer") {
+      if (!isSameSwipe(event, inputType)) {
+        resetSwipe();
+        return;
+      }
+
+      const point = getGesturePoint(event) || {
+        x: swipeStart.currentX,
+        y: swipeStart.currentY
+      };
+      const deltaX = point.x - swipeStart.x;
+      const deltaY = point.y - swipeStart.y;
+      const isHorizontalSwipe = Math.abs(deltaX) >= SWIPE_TRIGGER_PX && Math.abs(deltaX) > Math.abs(deltaY) * SWIPE_AXIS_RATIO;
+      resetSwipe();
+
+      if (!isHorizontalSwipe) {
+        return;
+      }
+
+      if (deltaX < 0) {
+        showPreviousNote("swipe-previous");
+      } else {
+        showNextNote("swipe-next");
+      }
+    }
+
+    function beginPointerSwipe(event) {
+      beginSwipe(event, "pointer");
+    }
+
+    function movePointerSwipe(event) {
+      moveSwipe(event, "pointer");
+    }
+
+    function endPointerSwipe(event) {
+      endSwipe(event, "pointer");
+    }
+
+    function beginTouchSwipe(event) {
+      beginSwipe(event, "touch");
+    }
+
+    function moveTouchSwipe(event) {
+      moveSwipe(event, "touch");
+    }
+
+    function endTouchSwipe(event) {
+      endSwipe(event, "touch");
+    }
+
+    function cancelPointerSwipe() {
+      if (swipeStart?.inputType === "pointer") {
+        resetSwipe();
+      }
+    }
+
+    function cancelTouchSwipe() {
+      if (swipeStart?.inputType === "touch") {
+        resetSwipe();
+      }
+    }
+
+    elements.csvInput.addEventListener("change", (event) => {
+      parseCsvFile(event.target.files[0]);
+    });
+
+    elements.fontInput.addEventListener("change", (event) => {
+      importFontFile(event.target.files[0]);
+    });
+
+    elements.backupInput.addEventListener("change", (event) => {
+      handleBackupFile(event.target.files[0]);
+    });
+
+    elements.previousButton.addEventListener("click", () => showPreviousNote("previous"));
+    elements.randomButton.addEventListener("click", () => showRandomNote("random"));
+    elements.nextButton.addEventListener("click", () => showNextNote("next"));
+    elements.favoriteButton.addEventListener("click", () => {
+      const note = notes[currentIndex];
+      if (note) {
+        toggleFavorite(note.id);
+      }
+    });
+
+    elements.reviewScopeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeBookKey = "";
+        reviewScope = button.dataset.reviewScope === "favorites" ? "favorites" : "all";
+        if (reviewScope === "favorites" && !notes.some((note) => note.favorite)) {
+          reviewScope = "all";
+          updateNoteCounts();
+          setStatus("还没有收藏句子。");
+          return;
+        }
+        updateNoteCounts();
+        showRandomNote(reviewScope === "favorites" ? "favorites" : "all");
+      });
+    });
+
+    elements.settingsButton.addEventListener("click", () => {
+      if (isSettingsOpen()) {
+        closeSettings();
+        return;
+      }
+
+      openSettings();
+    });
+
+    elements.settingsBackdrop.addEventListener("click", closeSettings);
+    elements.settingsCloseButton.addEventListener("click", closeSettings);
+    elements.openBookshelfButton.addEventListener("click", () => showSettingsView("bookshelf"));
+    elements.openLibraryButton.addEventListener("click", () => showSettingsView("library"));
+    elements.openStyleButton.addEventListener("click", () => showSettingsView("style"));
+    elements.openRecordsButton.addEventListener("click", () => showSettingsView("records"));
+    elements.openBackupButton.addEventListener("click", () => showSettingsView("backup"));
+    elements.bookshelfSearchInput.addEventListener("input", renderBookshelf);
+    elements.bookDetailBackButton.addEventListener("click", () => {
+      activeBookshelfKey = "";
+      renderBookshelf();
+    });
+    elements.bookDetailReviewButton.addEventListener("click", () => {
+      if (activeBookshelfKey) {
+        startBookReview(activeBookshelfKey);
+      }
+    });
+
+    elements.bookshelfList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-book-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const bookKey = actionButton.dataset.bookKey;
+      if (actionButton.dataset.bookAction === "open") {
+        activeBookshelfKey = bookKey;
+        renderBookshelf();
+      }
+
+      if (actionButton.dataset.bookAction === "review") {
+        startBookReview(bookKey);
+      }
+    });
+
+    elements.bookDetailNotes.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-book-note-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const noteId = actionButton.dataset.noteId;
+      if (actionButton.dataset.bookNoteAction === "edit") {
+        showSettingsView("library");
+        fillNoteForm(noteId);
+      }
+
+      if (actionButton.dataset.bookNoteAction === "delete") {
+        deleteNote(noteId);
+      }
+
+      if (actionButton.dataset.bookNoteAction === "favorite") {
+        toggleFavorite(noteId);
+      }
+    });
+
+    elements.exportBackupButton.addEventListener("click", () => {
+      exportFullBackup().catch((error) => {
+        console.error(error);
+        setStatus("备份导出失败，请稍后重试。");
+      });
+    });
+
+    elements.importBackupButton.addEventListener("click", () => {
+      elements.backupInput.value = "";
+      elements.backupInput.click();
+    });
+
+    elements.createSnapshotButton.addEventListener("click", () => {
+      createLocalBackup("manual-snapshot", "manual")
+        .then(() => renderBackupCenter())
+        .then(() => setStatus("本地快照已创建。"))
+        .catch((error) => {
+          console.error(error);
+          setStatus("本地快照创建失败。");
+        });
+    });
+
+    elements.exportRecordsCsvButton.addEventListener("click", exportReadingRecordsCsv);
+
+    elements.desktopBackupButton.addEventListener("click", () => {
+      writeBackupToChosenFile().catch((error) => {
+        if (error?.name === "AbortError") {
+          setStatus("已取消写入本地备份文件。");
+          return;
+        }
+        console.error(error);
+        setStatus("写入本地备份文件失败。");
+      });
+    });
+
+    elements.backupSnapshotsList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-backup-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const backupId = actionButton.dataset.backupId;
+      if (actionButton.dataset.backupAction === "restore") {
+        restoreLocalBackup(backupId).catch((error) => {
+          console.error(error);
+          setStatus("快照恢复失败。");
+        });
+      }
+
+      if (actionButton.dataset.backupAction === "delete") {
+        deleteLocalBackup(backupId).catch((error) => {
+          console.error(error);
+          setStatus("快照删除失败。");
+        });
+      }
+    });
+
+    elements.reimportButton.addEventListener("click", () => {
+      setStatus("请选择新的 CSV 文件。");
+      elements.csvInput.value = "";
+      elements.csvInput.click();
+    });
+
+    elements.clearDataButton.addEventListener("click", () => {
+      clearNotes();
+    });
+
+    elements.syncRefreshButton.addEventListener("click", () => {
+      refreshFromRemote().catch(() => {
+        updateSyncStatus("同步服务暂时不可用，请确认电脑端服务仍在运行。");
+      });
+    });
+
+    elements.syncImportLocalButton.addEventListener("click", () => {
+      importLocalDataToSync().catch(() => {
+        updateSyncStatus("导入失败，请确认同步服务仍在运行。");
+      });
+    });
+
+    elements.syncSaveAddressButton.addEventListener("click", saveCustomSyncAddress);
+    elements.syncClearAddressButton.addEventListener("click", clearCustomSyncAddress);
+    elements.syncAddressInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+
+      event.preventDefault();
+      saveCustomSyncAddress();
+    });
+
+    if (window.PointerEvent && !HAS_TOUCH_INPUT) {
+      elements.readingCard.addEventListener("pointerdown", beginPointerSwipe);
+      elements.readingCard.addEventListener("pointermove", movePointerSwipe);
+      elements.readingCard.addEventListener("pointerup", endPointerSwipe);
+      elements.readingCard.addEventListener("pointercancel", cancelPointerSwipe);
+    }
+
+    elements.readingCard.addEventListener("touchstart", beginTouchSwipe, { passive: true });
+    elements.readingCard.addEventListener("touchmove", moveTouchSwipe, { passive: false });
+    elements.readingCard.addEventListener("touchend", endTouchSwipe, { passive: true });
+    elements.readingCard.addEventListener("touchcancel", cancelTouchSwipe, { passive: true });
+
+    elements.fontImportButton.addEventListener("click", () => {
+      elements.fontInput.value = "";
+      elements.fontInput.click();
+    });
+
+    elements.noteForm.addEventListener("submit", handleNoteFormSubmit);
+    elements.cancelEditButton.addEventListener("click", () => {
+      resetNoteForm();
+      setStatus("");
+    });
+
+    elements.libraryList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-note-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const noteId = actionButton.dataset.noteId;
+      if (actionButton.dataset.noteAction === "edit") {
+        fillNoteForm(noteId);
+      }
+
+      if (actionButton.dataset.noteAction === "delete") {
+        deleteNote(noteId);
+      }
+
+      if (actionButton.dataset.noteAction === "favorite") {
+        toggleFavorite(noteId);
+      }
+    });
+
+    elements.customFontList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-font-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const fontId = actionButton.dataset.fontId;
+      if (actionButton.dataset.fontAction === "select") {
+        selectCustomFont(fontId);
+      }
+
+      if (actionButton.dataset.fontAction === "delete") {
+        deleteCustomFont(fontId);
+      }
+    });
+
+    elements.settingsPanel.addEventListener("click", (event) => {
+      if (event.target.closest("[data-settings-back]")) {
+        showSettingsView("home");
+      }
+    });
+
+    elements.styleChoices.forEach((button) => {
+      button.addEventListener("click", () => {
+        setDisplaySetting(button.dataset.styleGroup, button.dataset.styleValue);
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isSettingsOpen()) {
+        closeSettings();
+        elements.settingsButton.focus();
+        return;
+      }
+
+      const interactiveTags = ["BUTTON", "INPUT", "SELECT", "TEXTAREA", "A", "SUMMARY"];
+      const isInteractiveTarget = interactiveTags.includes(event.target.tagName);
+      if (event.key === " " && !isSettingsOpen() && !isInteractiveTarget && !elements.reviewView.classList.contains("hidden")) {
+        event.preventDefault();
+        showRandomNote();
+      }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        commitReadingSession("hidden");
+        return;
+      }
+
+      if (document.visibilityState === "visible") {
+        if (storage.mode === "lan") {
+          refreshFromRemote("已检查同步数据").catch(() => updateSyncStatus("同步服务暂时不可用。"));
+          return;
+        }
+
+        if (currentIndex >= 0 && notes[currentIndex]) {
+          startReadingSession(notes[currentIndex].id, "resume");
+        }
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      commitReadingSession("unload");
+    });
+
+    async function initApp() {
+      try {
+        setStatus(storage.mode === "lan" ? "正在连接同步主库..." : "正在准备本地数据库...");
+        db = await openDatabase();
+        await migrateLegacyData();
+
+        let state;
+        try {
+          state = await storage.loadAll();
+        } catch (error) {
+          if (storage.mode === "lan") {
+            showImportView("同步服务暂时不可用，请确认电脑端服务仍在运行。");
+            updateSyncStatus("同步服务暂时不可用。");
+            return;
+          }
+          throw error;
+        }
+
+        notes = state.notes;
+        readingEvents = state.readingEvents;
+        customFonts = state.fonts;
+        displaySettings = state.settings;
+        await registerFonts(customFonts);
+        updateReadingStats();
+        await updateMigrationPrompt(state);
+        updateSyncStatus();
+
+        if (displaySettings.fontMode === "custom" && !registeredFonts.has(displaySettings.customFontId)) {
+          displaySettings.fontMode = "builtin";
+          displaySettings.customFontId = "";
+          await persistDisplaySettings("font-fallback");
+        }
+
+        applyDisplaySettings();
+
+        if (notes.length) {
+          showReviewView();
+        } else {
+          showImportView("");
+        }
+      } catch (error) {
+        console.error(error);
+        showImportView("本地数据库初始化失败，请刷新页面后重试。");
+      }
+    }
+
+    function canRegisterServiceWorker() {
+      const localHosts = ["localhost", "127.0.0.1", "::1"];
+      return "serviceWorker" in navigator && (location.protocol === "https:" || localHosts.includes(location.hostname));
+    }
+
+    function registerServiceWorker() {
+      if (!canRegisterServiceWorker()) {
+        return;
+      }
+
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch(() => {
+          // Direct file mode and non-secure LAN pages remain fully usable without PWA caching.
+        });
+      });
+    }
+
+    registerServiceWorker();
+    initApp();

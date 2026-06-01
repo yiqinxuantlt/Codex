@@ -8,7 +8,8 @@ const COPY_ENTRIES = [
   "manifest.webmanifest",
   "service-worker.js",
   "icons",
-  "vendor"
+  "vendor",
+  "src"
 ];
 
 function copyRecursive(source, target) {

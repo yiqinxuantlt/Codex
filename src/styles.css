@@ -1,0 +1,733 @@
+    :root {
+      color-scheme: light;
+      --color-paper: 244 239 229;
+      --color-surface: 255 255 255;
+      --color-surface-soft: 251 250 246;
+      --color-ink: 45 41 35;
+      --color-muted: 129 119 104;
+      --color-sage: 102 116 94;
+      --color-clay: 181 107 79;
+      --color-border: 45 41 35;
+      --grid-line: rgba(255, 255, 255, 0.22);
+      --grain-dot: rgba(45, 41, 35, 0.14);
+      --backdrop: rgba(45, 41, 35, 0.18);
+      --shadow-card: 0 24px 70px rgba(62, 51, 37, 0.12), 0 3px 12px rgba(62, 51, 37, 0.06);
+      --surface-raised: rgba(255, 255, 255, 0.78);
+      --surface-inset: rgba(251, 250, 246, 0.82);
+      --line-soft: rgba(45, 41, 35, 0.1);
+      --accent-warm: 194 151 92;
+      --shadow-paper: 0 22px 58px rgba(62, 51, 37, 0.11), 0 2px 10px rgba(62, 51, 37, 0.06);
+      --shadow-sheet: 0 28px 90px rgba(62, 51, 37, 0.18), 0 5px 18px rgba(62, 51, 37, 0.08);
+      --motion-fast: 180ms;
+      --motion-medium: 300ms;
+      --note-font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      --note-font-size-base: clamp(1.04rem, 4.05vw, 1.24rem);
+      --note-font-size-sm: 1.7rem;
+      --note-font-size-md: 1.9rem;
+      --note-line-height: 1.82;
+    }
+
+    html[data-theme="night"] {
+      color-scheme: dark;
+      --color-paper: 15 18 17;
+      --color-surface: 27 31 29;
+      --color-surface-soft: 34 39 36;
+      --color-ink: 239 232 215;
+      --color-muted: 177 165 142;
+      --color-sage: 153 177 141;
+      --color-clay: 222 154 111;
+      --color-border: 239 232 215;
+      --grid-line: rgba(214, 181, 118, 0.035);
+      --grain-dot: rgba(244, 231, 201, 0.09);
+      --backdrop: rgba(0, 0, 0, 0.48);
+      --shadow-card: 0 28px 90px rgba(0, 0, 0, 0.34), 0 3px 18px rgba(0, 0, 0, 0.22);
+      --surface-raised: rgba(31, 36, 33, 0.88);
+      --surface-inset: rgba(37, 42, 39, 0.78);
+      --line-soft: rgba(239, 232, 215, 0.105);
+      --accent-warm: 214 181 118;
+      --shadow-paper: 0 24px 76px rgba(0, 0, 0, 0.38), 0 2px 14px rgba(0, 0, 0, 0.28);
+      --shadow-sheet: 0 32px 96px rgba(0, 0, 0, 0.52), 0 5px 22px rgba(0, 0, 0, 0.32);
+    }
+
+    html[data-theme="sepia"] {
+      color-scheme: light;
+      --color-paper: 235 222 197;
+      --color-surface: 254 248 234;
+      --color-surface-soft: 247 237 214;
+      --color-ink: 62 45 32;
+      --color-muted: 133 102 76;
+      --color-sage: 109 116 75;
+      --color-clay: 159 84 58;
+      --color-border: 62 45 32;
+      --grid-line: rgba(255, 255, 255, 0.22);
+      --grain-dot: rgba(78, 49, 25, 0.13);
+      --backdrop: rgba(62, 45, 32, 0.2);
+      --shadow-card: 0 25px 80px rgba(88, 58, 28, 0.16), 0 4px 16px rgba(88, 58, 28, 0.08);
+      --surface-raised: rgba(254, 248, 234, 0.84);
+      --surface-inset: rgba(247, 237, 214, 0.82);
+      --line-soft: rgba(62, 45, 32, 0.105);
+      --accent-warm: 189 138 75;
+      --shadow-paper: 0 23px 66px rgba(88, 58, 28, 0.14), 0 3px 13px rgba(88, 58, 28, 0.07);
+      --shadow-sheet: 0 30px 88px rgba(88, 58, 28, 0.2), 0 5px 18px rgba(88, 58, 28, 0.1);
+    }
+
+    html[data-theme="green"] {
+      color-scheme: light;
+      --color-paper: 227 235 225;
+      --color-surface: 250 253 247;
+      --color-surface-soft: 238 246 235;
+      --color-ink: 37 50 43;
+      --color-muted: 92 112 99;
+      --color-sage: 74 112 85;
+      --color-clay: 172 91 71;
+      --color-border: 37 50 43;
+      --grid-line: rgba(255, 255, 255, 0.24);
+      --grain-dot: rgba(37, 50, 43, 0.12);
+      --backdrop: rgba(37, 50, 43, 0.2);
+      --shadow-card: 0 24px 70px rgba(42, 75, 55, 0.13), 0 3px 12px rgba(42, 75, 55, 0.07);
+      --surface-raised: rgba(250, 253, 247, 0.84);
+      --surface-inset: rgba(238, 246, 235, 0.82);
+      --line-soft: rgba(37, 50, 43, 0.105);
+      --accent-warm: 176 132 86;
+      --shadow-paper: 0 23px 64px rgba(42, 75, 55, 0.12), 0 3px 12px rgba(42, 75, 55, 0.07);
+      --shadow-sheet: 0 30px 86px rgba(42, 75, 55, 0.18), 0 5px 18px rgba(42, 75, 55, 0.09);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      overflow-x: hidden;
+    }
+
+    * {
+      min-width: 0;
+      scrollbar-color: rgb(var(--color-sage) / 0.45) transparent;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100svh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 14% 8%, rgb(var(--accent-warm) / 0.08), transparent 28rem),
+        radial-gradient(circle at 86% 2%, rgb(var(--color-sage) / 0.08), transparent 24rem),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        rgb(var(--color-paper));
+      background-size: auto, auto, 34px 34px, 34px 34px, auto;
+      font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      color: rgb(var(--color-ink));
+      transition: background-color 240ms ease, color 240ms ease;
+    }
+
+    button,
+    label,
+    summary {
+      touch-action: manipulation;
+    }
+
+    .soft-noise::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image: radial-gradient(var(--grain-dot) 0.6px, transparent 0.6px);
+      background-size: 11px 11px;
+      mix-blend-mode: multiply;
+    }
+
+    html[data-theme="night"] .soft-noise::before {
+      mix-blend-mode: screen;
+      opacity: 0.14;
+    }
+
+    .fade-in {
+      animation: fadeIn 520ms ease both;
+    }
+
+    .quote-swap {
+      animation: quoteSwap 300ms ease both;
+    }
+
+    .quote-swap-next {
+      animation: cardFlipNext 360ms cubic-bezier(0.2, 0.74, 0.22, 1) both;
+    }
+
+    .quote-swap-previous {
+      animation: cardFlipPrevious 360ms cubic-bezier(0.2, 0.74, 0.22, 1) both;
+    }
+
+    #noteText {
+      font-family: var(--note-font-family);
+      font-size: var(--note-font-size-base);
+      line-height: var(--note-line-height);
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      text-wrap: pretty;
+    }
+
+    .note-preview {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
+    .book-spine {
+      background: linear-gradient(180deg, rgb(var(--color-sage) / 0.2), rgb(var(--accent-warm) / 0.14));
+      box-shadow: inset 0 0 0 1px rgb(var(--color-surface) / 0.34);
+    }
+
+    .book-preview {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
+    details > summary {
+      list-style: none;
+    }
+
+    details > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .settings-backdrop {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 220ms ease;
+      background: var(--backdrop);
+    }
+
+    .settings-panel {
+      transform: translateY(calc(100% + 2rem));
+      max-height: calc(100vh - 2rem);
+      max-height: calc(100svh - 2rem);
+      max-height: calc(100dvh - 2rem);
+      background:
+        linear-gradient(180deg, var(--surface-raised), rgb(var(--color-surface) / 0.92)),
+        rgb(var(--color-surface));
+      box-shadow: var(--shadow-sheet);
+      transition: transform var(--motion-medium) cubic-bezier(0.2, 0.74, 0.22, 1);
+    }
+
+    body.settings-open .settings-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    body.settings-open .settings-panel {
+      transform: translateY(0);
+    }
+
+    .style-choice[aria-pressed="true"],
+    .font-choice[aria-pressed="true"] {
+      border-color: rgb(var(--color-sage) / 0.68);
+      background: rgb(var(--color-sage) / 0.12);
+      color: rgb(var(--color-ink));
+      box-shadow: inset 0 0 0 1px rgb(var(--color-sage) / 0.18);
+    }
+
+    .import-card,
+    #settingsHomeView > section,
+    #settingsHomeView > .rounded-\[20px\],
+    #settingsHomeView > .mt-7.grid > button,
+    #settingsHomeView > .mt-7.space-y-3 > button,
+    #settingsPanel section.rounded-\[20px\],
+    .library-note-card,
+    .record-detail-card,
+    .backup-snapshot-card,
+    .book-card,
+    .book-detail-note-card,
+    .metric-card {
+      border-color: var(--line-soft);
+      background:
+        linear-gradient(180deg, var(--surface-raised), var(--surface-inset));
+      box-shadow: 0 14px 34px rgb(var(--color-border) / 0.055);
+    }
+
+    .style-choice,
+    .font-choice,
+    #settingsPanel input,
+    #settingsPanel textarea {
+      border-color: var(--line-soft);
+      background: var(--surface-inset);
+    }
+
+    #settingsPanel button,
+    #reviewControls button {
+      min-height: 2.75rem;
+    }
+
+    #appShell {
+      min-height: 100vh;
+      min-height: 100svh;
+      min-height: 100dvh;
+      padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    }
+
+    #reviewStage {
+      min-height: min(72dvh, 720px);
+    }
+
+    #readingCard {
+      overflow: hidden;
+      perspective: 1100px;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .reading-card {
+      background:
+        linear-gradient(135deg, rgb(var(--color-surface) / 0.94), rgb(var(--color-surface-soft) / 0.82));
+      border-color: var(--line-soft);
+      box-shadow: var(--shadow-paper);
+    }
+
+    .reading-card::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 42%);
+      opacity: 0.7;
+    }
+
+    .reading-card #quoteWrap {
+      position: relative;
+      z-index: 1;
+    }
+
+    .reading-card #favoriteButton {
+      z-index: 3;
+    }
+
+    .reading-card > .absolute {
+      z-index: 0;
+    }
+
+    html[data-theme="night"] .reading-card::after {
+      background: radial-gradient(circle at 50% 0%, rgb(var(--accent-warm) / 0.1), transparent 48%);
+      opacity: 1;
+    }
+
+    #quoteWrap {
+      scrollbar-width: thin;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+      transform-origin: center;
+      transform-style: preserve-3d;
+      backface-visibility: hidden;
+      will-change: transform, opacity, filter;
+    }
+
+    #reviewControls {
+      width: 100%;
+    }
+
+    .records-chart-card {
+      border: 1px solid var(--line-soft);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, var(--surface-raised), var(--surface-inset));
+      box-shadow: 0 14px 32px rgb(var(--color-border) / 0.055);
+      padding: 1rem;
+    }
+
+    .records-daily-bars {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      align-items: end;
+      gap: 0.38rem;
+    }
+
+    .records-daily-track {
+      display: flex;
+      height: 5.25rem;
+      align-items: end;
+      justify-content: center;
+      border-radius: 14px;
+      background: rgb(var(--color-surface) / 0.72);
+      padding: 0.35rem;
+    }
+
+    .records-daily-fill,
+    .records-top-fill {
+      background: linear-gradient(180deg, rgb(var(--color-sage) / 0.88), rgb(var(--color-sage) / 0.5));
+    }
+
+    .records-daily-fill {
+      width: min(100%, 1.05rem);
+      min-height: 0.25rem;
+      border-radius: 999px;
+    }
+
+    .records-top-track {
+      height: 0.55rem;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgb(var(--color-surface) / 0.78);
+    }
+
+    .records-top-fill {
+      height: 100%;
+      min-width: 0.4rem;
+      border-radius: inherit;
+    }
+
+    #settingsButton {
+      bottom: calc(1.25rem + env(safe-area-inset-bottom));
+      right: calc(1.25rem + env(safe-area-inset-right));
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes quoteSwap {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes cardFlipNext {
+      from {
+        opacity: 0;
+        transform: translateX(18px) rotateY(-4deg) scale(0.992);
+        filter: blur(0.35px);
+      }
+      70% {
+        opacity: 1;
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0) rotateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes cardFlipPrevious {
+      from {
+        opacity: 0;
+        transform: translateX(-18px) rotateY(4deg) scale(0.992);
+        filter: blur(0.35px);
+      }
+      70% {
+        opacity: 1;
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0) rotateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+
+      .quote-swap-next,
+      .quote-swap-previous {
+        animation-name: quoteSwap !important;
+      }
+    }
+
+    @media (min-width: 640px) {
+      #noteText {
+        font-size: var(--note-font-size-sm);
+      }
+
+      .settings-panel {
+        transform: translateX(calc(100% + 2rem));
+      }
+    }
+
+    @media (min-width: 768px) {
+      #noteText {
+        font-size: var(--note-font-size-md);
+      }
+    }
+
+    @media (max-width: 639px) {
+      body {
+        background-size: auto, auto, 30px 30px, 30px 30px, auto;
+      }
+
+      #appShell {
+        align-items: stretch;
+        padding: 0.95rem 0.875rem calc(5.65rem + env(safe-area-inset-bottom));
+      }
+
+      #reviewView {
+        width: 100%;
+      }
+
+      #importView {
+        align-self: center;
+      }
+
+      #importView h1 {
+        font-size: 2.25rem;
+      }
+
+      .import-card {
+        margin-top: 2rem;
+        border-radius: 22px;
+        padding: 1rem;
+      }
+
+      .import-card label {
+        border-radius: 18px;
+        padding: 2.2rem 1rem;
+      }
+
+      #reviewStage {
+        min-height: calc(100svh - 6.5rem);
+        justify-content: center;
+      }
+
+      @supports (height: 100dvh) {
+        #reviewStage {
+          min-height: calc(100dvh - 6.5rem);
+        }
+      }
+
+      #readerMeta {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        margin-bottom: 0.65rem;
+        gap: 0.34rem 0.55rem;
+        font-size: 0.72rem;
+        line-height: 1.45;
+      }
+
+      #readerMeta > span {
+        max-width: 100%;
+      }
+
+      #syncModeText,
+      #reviewScopeControls {
+        justify-self: end;
+      }
+
+      #swipeHint {
+        grid-column: 1;
+        font-size: 0.68rem;
+      }
+
+      #readingCard {
+        max-height: min(54svh, 28rem);
+        border-radius: 20px;
+        padding: clamp(1.22rem, 4.6vw, 1.65rem) clamp(1.05rem, 4.2vw, 1.42rem);
+        box-shadow: var(--shadow-paper);
+      }
+
+      @supports (height: 100dvh) {
+        #readingCard {
+          max-height: min(54dvh, 28rem);
+        }
+      }
+
+      #readingCard > .absolute {
+        left: 1.05rem;
+        top: 0.95rem;
+        font-size: 3.6rem;
+      }
+
+      #quoteWrap {
+        max-height: calc(min(54svh, 28rem) - 2.85rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 0.15rem;
+      }
+
+      @supports (height: 100dvh) {
+        #quoteWrap {
+          max-height: calc(min(54dvh, 28rem) - 2.85rem);
+        }
+      }
+
+      #noteSource {
+        margin-top: 1.2rem;
+        font-size: 0.78rem;
+        line-height: 1.65;
+      }
+
+      #reviewControls {
+        display: grid;
+        grid-template-columns: minmax(4.7rem, 1fr) minmax(7.25rem, 1.28fr) minmax(4.7rem, 1fr);
+        gap: 0.55rem;
+        margin-top: 0.95rem;
+        max-width: 100%;
+      }
+
+      #previousButton,
+      #randomButton,
+      #nextButton {
+        min-height: 2.75rem;
+        width: 100%;
+        white-space: nowrap;
+        padding: 0.7rem 0.55rem;
+        font-size: 0.82rem;
+        line-height: 1.15;
+        box-shadow: 0 10px 20px rgb(var(--color-border) / 0.06);
+      }
+
+      #randomButton {
+        padding-inline: 0.75rem;
+        font-size: 0.9rem;
+      }
+
+      #countText {
+        grid-column: 1 / -1;
+        margin-top: 0.1rem;
+        text-align: center;
+        font-size: 0.76rem;
+      }
+
+      #settingsButton {
+        bottom: calc(1rem + env(safe-area-inset-bottom));
+        right: calc(0.9rem + env(safe-area-inset-right));
+        height: 3rem;
+        width: 3rem;
+      }
+
+      #settingsPanel {
+        inset-inline: 0.75rem;
+        bottom: calc(0.75rem + env(safe-area-inset-bottom));
+        max-height: calc(100vh - 1.5rem - env(safe-area-inset-bottom));
+        max-height: calc(100svh - 1.5rem - env(safe-area-inset-bottom));
+        border-radius: 22px;
+        padding: 0.95rem;
+      }
+
+      @supports (height: 100dvh) {
+        #settingsPanel {
+          max-height: calc(100dvh - 1.5rem - env(safe-area-inset-bottom));
+        }
+      }
+
+      #settingsPanel h2 {
+        font-size: 1.35rem;
+        line-height: 1.25;
+      }
+
+      #settingsPanel h3,
+      #settingsPanel .text-base {
+        font-size: 0.95rem;
+      }
+
+      #settingsPanel .mt-7 {
+        margin-top: 1rem !important;
+      }
+
+      #settingsPanel .mt-6 {
+        margin-top: 0.9rem !important;
+      }
+
+      #settingsPanel .p-4,
+      #settingsPanel .px-5 {
+        padding-left: 0.9rem !important;
+        padding-right: 0.9rem !important;
+      }
+
+      #settingsPanel .py-4 {
+        padding-top: 0.8rem !important;
+        padding-bottom: 0.8rem !important;
+      }
+
+      #recordsSummaryGrid,
+      #bookshelfSummaryGrid,
+      #bookDetailSummaryGrid,
+      #backupOverviewGrid {
+        gap: 0.65rem;
+      }
+
+      #libraryList,
+      #bookshelfList,
+      #bookDetailNotes,
+      #recordsList,
+      #backupSnapshotsList,
+      #backupHealthList {
+        margin-top: 0.65rem;
+      }
+
+      .library-note-card,
+      .book-card,
+      .book-detail-note-card,
+      .record-detail-card,
+      .backup-snapshot-card {
+        border-radius: 16px;
+        padding: 0.85rem;
+      }
+
+      .book-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        width: 100%;
+      }
+
+      .book-actions > button {
+        width: 100%;
+        padding-inline: 0.75rem;
+      }
+
+      .metric-card {
+        border-radius: 15px;
+        padding: 0.85rem;
+      }
+
+      .records-chart-card {
+        border-radius: 16px;
+        padding: 0.82rem;
+      }
+
+      .records-daily-track {
+        height: 4.4rem;
+        border-radius: 12px;
+      }
+    }
+
+    @media (max-width: 374px) {
+      #reviewControls {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      #randomButton {
+        grid-column: 1 / -1;
+        grid-row: 1;
+      }
+
+      #previousButton,
+      #nextButton {
+        grid-row: 2;
+      }
+    }
