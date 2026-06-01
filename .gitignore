@@ -9,6 +9,7 @@ backups/
 _verify-*
 _edge-verify-profile/
 _edge-*-profile/
+_edge-mobile-*-profile*/
 _edge-swipe-test/
 .npm-cache/
 .android-local/
