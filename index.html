@@ -217,6 +217,18 @@
       overflow: hidden;
     }
 
+    .book-spine {
+      background: linear-gradient(180deg, rgb(var(--color-sage) / 0.2), rgb(var(--accent-warm) / 0.14));
+      box-shadow: inset 0 0 0 1px rgb(var(--color-surface) / 0.34);
+    }
+
+    .book-preview {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
     details > summary {
       list-style: none;
     }
@@ -270,6 +282,8 @@
     .library-note-card,
     .record-detail-card,
     .backup-snapshot-card,
+    .book-card,
+    .book-detail-note-card,
     .metric-card {
       border-color: var(--line-soft);
       background:
@@ -689,11 +703,15 @@
       }
 
       #recordsSummaryGrid,
+      #bookshelfSummaryGrid,
+      #bookDetailSummaryGrid,
       #backupOverviewGrid {
         gap: 0.65rem;
       }
 
       #libraryList,
+      #bookshelfList,
+      #bookDetailNotes,
       #recordsList,
       #backupSnapshotsList,
       #backupHealthList {
@@ -701,10 +719,23 @@
       }
 
       .library-note-card,
+      .book-card,
+      .book-detail-note-card,
       .record-detail-card,
       .backup-snapshot-card {
         border-radius: 16px;
         padding: 0.85rem;
+      }
+
+      .book-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        width: 100%;
+      }
+
+      .book-actions > button {
+        width: 100%;
+        padding-inline: 0.75rem;
       }
 
       .metric-card {
@@ -925,6 +956,18 @@
 
         <div class="mt-7 grid gap-3">
           <button
+            id="openBookshelfButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">书架</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">按书名整理摘录，并进入单本书回顾</span>
+            </span>
+            <span class="text-xl text-sage" aria-hidden="true">›</span>
+          </button>
+
+          <button
             id="openLibraryButton"
             type="button"
             class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
@@ -998,6 +1041,61 @@
             <span class="text-xl text-clay" aria-hidden="true">⌫</span>
           </button>
         </div>
+      </div>
+
+      <div id="settingsBookshelfView" data-settings-view="bookshelf" class="hidden">
+        <button
+          type="button"
+          data-settings-back
+          class="mt-7 inline-flex items-center rounded-full border border-borderSoft/10 bg-surfaceSoft px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+        >
+          ← 返回设置
+        </button>
+
+        <section id="bookshelfListPanel" class="mt-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-base font-semibold text-ink">书架</h3>
+              <p id="bookshelfCountText" class="mt-1 text-xs leading-5 text-muted">0 本书</p>
+            </div>
+            <span class="rounded-full bg-sage/10 px-3 py-1 text-xs text-sage">按书聚合</span>
+          </div>
+          <label class="mt-4 block">
+            <span class="sr-only">搜索书架</span>
+            <input
+              id="bookshelfSearchInput"
+              type="search"
+              class="w-full rounded-[16px] border border-borderSoft/10 bg-surface px-4 py-3 text-sm text-ink outline-none transition focus:border-sage/45 focus:ring-4 focus:ring-sage/15"
+              placeholder="搜索书名或作者"
+            />
+          </label>
+          <div id="bookshelfSummaryGrid" class="mt-3 grid grid-cols-2 gap-3"></div>
+          <div id="bookshelfList" class="mt-3 space-y-3"></div>
+        </section>
+
+        <section id="bookDetailPanel" class="mt-6 hidden">
+          <button
+            id="bookDetailBackButton"
+            type="button"
+            class="inline-flex items-center rounded-full border border-borderSoft/10 bg-surfaceSoft px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            ← 返回书架
+          </button>
+          <div class="mt-4 rounded-[20px] border border-sage/15 bg-sage/5 p-4">
+            <p class="text-xs text-muted">当前书籍</p>
+            <h3 id="bookDetailTitle" class="mt-1 text-lg font-semibold leading-7 text-ink">未知书名</h3>
+            <p id="bookDetailMeta" class="mt-1 text-sm leading-6 text-muted"></p>
+            <div id="bookDetailSummaryGrid" class="mt-4 grid grid-cols-2 gap-3"></div>
+            <button
+              id="bookDetailReviewButton"
+              type="button"
+              class="mt-4 w-full rounded-full bg-ink px-5 py-3 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20"
+            >
+              只回顾这本书
+            </button>
+          </div>
+          <div id="bookDetailNotes" class="mt-3 space-y-3"></div>
+        </section>
       </div>
 
       <div id="settingsLibraryView" data-settings-view="library" class="hidden">
@@ -1349,12 +1447,25 @@
       storageHintText: document.getElementById("storageHintText"),
       settingsStatus: document.getElementById("settingsStatus"),
       settingsViews: Array.from(document.querySelectorAll("[data-settings-view]")),
+      openBookshelfButton: document.getElementById("openBookshelfButton"),
       openLibraryButton: document.getElementById("openLibraryButton"),
       openStyleButton: document.getElementById("openStyleButton"),
       openRecordsButton: document.getElementById("openRecordsButton"),
       openBackupButton: document.getElementById("openBackupButton"),
       reimportButton: document.getElementById("reimportButton"),
       clearDataButton: document.getElementById("clearDataButton"),
+      bookshelfListPanel: document.getElementById("bookshelfListPanel"),
+      bookDetailPanel: document.getElementById("bookDetailPanel"),
+      bookshelfSearchInput: document.getElementById("bookshelfSearchInput"),
+      bookshelfCountText: document.getElementById("bookshelfCountText"),
+      bookshelfSummaryGrid: document.getElementById("bookshelfSummaryGrid"),
+      bookshelfList: document.getElementById("bookshelfList"),
+      bookDetailBackButton: document.getElementById("bookDetailBackButton"),
+      bookDetailTitle: document.getElementById("bookDetailTitle"),
+      bookDetailMeta: document.getElementById("bookDetailMeta"),
+      bookDetailSummaryGrid: document.getElementById("bookDetailSummaryGrid"),
+      bookDetailReviewButton: document.getElementById("bookDetailReviewButton"),
+      bookDetailNotes: document.getElementById("bookDetailNotes"),
       libraryList: document.getElementById("libraryList"),
       libraryCountText: document.getElementById("libraryCountText"),
       noteForm: document.getElementById("noteForm"),
@@ -1417,6 +1528,8 @@
     let currentIndex = -1;
     let editingNoteId = null;
     let reviewScope = "all";
+    let activeBookKey = "";
+    let activeBookshelfKey = "";
     let displaySettings = { ...DEFAULT_DISPLAY_SETTINGS };
     let readingSession = null;
     let swipeStart = null;
@@ -2042,9 +2155,16 @@
 
     function updateNoteCounts() {
       const favoriteCount = notes.filter((note) => note.favorite).length;
-      elements.countText.textContent = reviewScope === "favorites"
-        ? `收藏 ${favoriteCount} 条 · 共 ${notes.length} 条`
-        : `${notes.length} 条笔记 · ${favoriteCount} 条收藏`;
+      if (reviewScope === "book") {
+        const group = getBookGroupByKey(activeBookKey);
+        elements.countText.textContent = group
+          ? `《${group.book}》 ${group.noteCount} 条 · 收藏 ${group.favoriteCount} 条`
+          : `${notes.length} 条笔记 · ${favoriteCount} 条收藏`;
+      } else {
+        elements.countText.textContent = reviewScope === "favorites"
+          ? `收藏 ${favoriteCount} 条 · 共 ${notes.length} 条`
+          : `${notes.length} 条笔记 · ${favoriteCount} 条收藏`;
+      }
       elements.settingsNoteCount.textContent = `${notes.length} 条 · 收藏 ${favoriteCount} 条`;
       elements.libraryCountText.textContent = `${notes.length} 条`;
       updateReviewScopeButtons();
@@ -2077,6 +2197,19 @@
     }
 
     function getReviewPool() {
+      if (reviewScope === "book") {
+        const group = getBookGroupByKey(activeBookKey);
+        if (group?.notes.length) {
+          return group.notes;
+        }
+
+        reviewScope = "all";
+        activeBookKey = "";
+        setStatus("这本书暂时没有可回顾的摘录，已切回全部回顾。");
+        updateReviewScopeButtons();
+        return notes;
+      }
+
       if (reviewScope !== "favorites") {
         return notes;
       }
@@ -2087,6 +2220,7 @@
       }
 
       reviewScope = "all";
+      activeBookKey = "";
       setStatus("还没有收藏句子，已切回全部回顾。");
       updateReviewScopeButtons();
       return notes;
@@ -2097,6 +2231,74 @@
         return -1;
       }
       return pool.findIndex((note) => note.id === notes[currentIndex].id);
+    }
+
+    function getBookTitle(note) {
+      return cleanText(note?.book) || "未知书名";
+    }
+
+    function getBookAuthor(note) {
+      return cleanText(note?.author);
+    }
+
+    function getBookKeyFromParts(book, author) {
+      return `${cleanText(book).toLowerCase() || "未知书名"}::${cleanText(author).toLowerCase()}`;
+    }
+
+    function getBookKey(note) {
+      return getBookKeyFromParts(getBookTitle(note), getBookAuthor(note));
+    }
+
+    function getBookSource(book, author) {
+      return author ? `《${book}》${author}` : `《${book}》`;
+    }
+
+    function summarizeBookNotes(bookNotes) {
+      return bookNotes.reduce((summary, note) => {
+        const stats = readingStats.byNote.get(note.id);
+        summary.favoriteCount += note.favorite ? 1 : 0;
+        summary.totalDurationMs += stats?.totalDurationMs || 0;
+        summary.viewCount += stats?.viewCount || 0;
+        if (stats?.lastViewedAt && (!summary.lastViewedAt || stats.lastViewedAt > summary.lastViewedAt)) {
+          summary.lastViewedAt = stats.lastViewedAt;
+        }
+        if (note.updatedAt && (!summary.lastUpdatedAt || note.updatedAt > summary.lastUpdatedAt)) {
+          summary.lastUpdatedAt = note.updatedAt;
+        }
+        return summary;
+      }, {
+        favoriteCount: 0,
+        totalDurationMs: 0,
+        viewCount: 0,
+        lastViewedAt: "",
+        lastUpdatedAt: ""
+      });
+    }
+
+    function getBookGroups() {
+      const groups = new Map();
+      notes.forEach((note) => {
+        const book = getBookTitle(note);
+        const author = getBookAuthor(note);
+        const key = getBookKeyFromParts(book, author);
+        if (!groups.has(key)) {
+          groups.set(key, { key, book, author, notes: [] });
+        }
+        groups.get(key).notes.push(note);
+      });
+
+      return Array.from(groups.values()).map((group) => ({
+        ...group,
+        ...summarizeBookNotes(group.notes),
+        noteCount: group.notes.length
+      })).sort((a, b) => {
+        const recentCompare = String(b.lastUpdatedAt).localeCompare(String(a.lastUpdatedAt));
+        return recentCompare || a.book.localeCompare(b.book, "zh-Hans-CN");
+      });
+    }
+
+    function getBookGroupByKey(bookKey) {
+      return getBookGroups().find((group) => group.key === bookKey) || null;
     }
 
     function updateSyncStatus(message = "") {
@@ -2396,6 +2598,7 @@
       updateReadingStats();
       updateNoteCounts();
       renderLibrary();
+      renderBookshelf();
       renderReadingRecords();
       updateReviewScopeButtons();
       updateFavoriteButton();
@@ -2700,6 +2903,7 @@
       updateReadingStats();
       updateNoteCounts();
       renderLibrary();
+      renderBookshelf();
       renderReadingRecords();
       await updateMigrationPrompt(state);
 
@@ -2741,6 +2945,7 @@
       updateReadingStats();
       updateNoteCounts();
       renderLibrary();
+      renderBookshelf();
       renderReadingRecords();
       elements.syncImportLocalButton.classList.add("hidden");
 
@@ -3103,6 +3308,10 @@
         renderLibrary();
       }
 
+      if (viewName === "bookshelf") {
+        renderBookshelf();
+      }
+
       if (viewName === "style") {
         updateStyleButtons();
         updateStylePreview();
@@ -3161,6 +3370,26 @@
       updateNoteCounts();
       closeSettings();
       showRandomNote("initial");
+    }
+
+    async function startBookReview(bookKey) {
+      const group = getBookGroupByKey(bookKey);
+      if (!group?.notes.length) {
+        setStatus("这本书暂时没有可回顾的摘录。");
+        return;
+      }
+
+      reviewScope = "book";
+      activeBookKey = bookKey;
+      activeBookshelfKey = bookKey;
+      elements.importView.classList.add("hidden");
+      elements.reviewView.classList.remove("hidden");
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      closeSettings();
+      const currentBookNote = group.notes.find((note) => note.id === notes[currentIndex]?.id) || group.notes[0];
+      await switchToNote(findNoteIndexById(currentBookNote.id), "book", "random");
+      setStatus(`已进入《${group.book}》回顾。`);
     }
 
     function displayNoteAt(index, animation = "random") {
@@ -3381,6 +3610,122 @@
       }).join("");
     }
 
+    function renderBookshelfMetric(label, value, hint) {
+      return `
+        <div class="metric-card rounded-[16px] border border-borderSoft/10 bg-surfaceSoft p-3">
+          <p class="text-[0.68rem] leading-4 text-muted">${escapeHtml(label)}</p>
+          <p class="mt-1 text-lg font-semibold text-ink">${escapeHtml(value)}</p>
+          <p class="mt-1 text-[0.68rem] leading-4 text-muted">${escapeHtml(hint)}</p>
+        </div>
+      `;
+    }
+
+    function renderBookshelf() {
+      updateReadingStats();
+      const query = cleanText(elements.bookshelfSearchInput?.value).toLowerCase();
+      const groups = getBookGroups();
+      const visibleGroups = groups.filter((group) => {
+        if (!query) {
+          return true;
+        }
+        return `${group.book} ${group.author}`.toLowerCase().includes(query);
+      });
+
+      elements.bookshelfCountText.textContent = `${groups.length} 本书 · ${notes.length} 条摘录`;
+      elements.bookshelfSummaryGrid.innerHTML = [
+        renderBookshelfMetric("书籍", `${groups.length} 本`, "按书名与作者归并"),
+        renderBookshelfMetric("摘录", `${notes.length} 条`, "当前句子库"),
+        renderBookshelfMetric("收藏", `${notes.filter((note) => note.favorite).length} 条`, "星标摘录"),
+        renderBookshelfMetric("阅读", formatShortDuration(readingStats.totalDurationMs), `${readingStats.totalViews} 次浏览`)
+      ].join("");
+
+      if (activeBookshelfKey && getBookGroupByKey(activeBookshelfKey)) {
+        renderBookDetail(activeBookshelfKey);
+        return;
+      }
+
+      activeBookshelfKey = "";
+      elements.bookshelfListPanel.classList.remove("hidden");
+      elements.bookDetailPanel.classList.add("hidden");
+
+      if (!visibleGroups.length) {
+        elements.bookshelfList.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+            ${groups.length ? "没有匹配的书，可以换个关键词。" : "书架还是空的，可以先导入 CSV 或在句子库新增摘录。"}
+          </div>
+        `;
+        return;
+      }
+
+      elements.bookshelfList.innerHTML = visibleGroups.map((group) => {
+        const source = getBookSource(group.book, group.author);
+        const preview = group.notes[0]?.content || "";
+        const lastViewed = group.lastViewedAt ? formatDateTime(group.lastViewedAt) : "尚未浏览";
+        return `
+          <article class="book-card rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4 transition hover:border-sage/25">
+            <div class="flex gap-3">
+              <div class="book-spine h-16 w-3 shrink-0 rounded-full" aria-hidden="true"></div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <h4 class="truncate text-base font-semibold text-ink">${escapeHtml(group.book)}</h4>
+                    <p class="mt-1 text-xs leading-5 text-muted">${escapeHtml(group.author || "作者未记录")}</p>
+                  </div>
+                  <span class="shrink-0 rounded-full bg-sage/10 px-3 py-1 text-xs text-sage">${group.noteCount} 条</span>
+                </div>
+                <p class="book-preview mt-3 text-sm leading-6 text-ink">${escapeHtml(preview)}</p>
+                <p class="mt-2 text-xs leading-5 text-muted">${escapeHtml(source)} · 最近 ${escapeHtml(lastViewed)}</p>
+                <div class="book-actions mt-3 flex flex-wrap gap-2">
+                  <button type="button" data-book-action="open" data-book-key="${escapeHtml(group.key)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">查看摘录</button>
+                  <button type="button" data-book-action="review" data-book-key="${escapeHtml(group.key)}" class="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20">回顾此书</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderBookDetail(bookKey) {
+      const group = getBookGroupByKey(bookKey);
+      if (!group) {
+        activeBookshelfKey = "";
+        renderBookshelf();
+        return;
+      }
+
+      elements.bookshelfListPanel.classList.add("hidden");
+      elements.bookDetailPanel.classList.remove("hidden");
+      elements.bookDetailTitle.textContent = group.book;
+      elements.bookDetailMeta.textContent = `${group.author || "作者未记录"} · ${group.noteCount} 条摘录`;
+      elements.bookDetailSummaryGrid.innerHTML = [
+        renderBookshelfMetric("摘录", `${group.noteCount} 条`, "这本书"),
+        renderBookshelfMetric("收藏", `${group.favoriteCount} 条`, "星标摘录"),
+        renderBookshelfMetric("停留", formatShortDuration(group.totalDurationMs), `${group.viewCount} 次浏览`),
+        renderBookshelfMetric("最近", group.lastViewedAt ? formatDateTime(group.lastViewedAt) : "尚未浏览", "阅读记录")
+      ].join("");
+
+      elements.bookDetailNotes.innerHTML = group.notes.map((note) => {
+        const stats = readingStats.byNote.get(note.id);
+        const viewCount = stats?.viewCount || 0;
+        const duration = stats?.totalDurationMs ? formatDuration(stats.totalDurationMs) : "0秒";
+        const lastViewed = stats?.lastViewedAt ? formatDateTime(stats.lastViewedAt) : "尚未浏览";
+        return `
+          <article class="book-detail-note-card rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4">
+            <div class="flex items-start gap-3">
+              <p class="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-7 text-ink">${escapeHtml(note.content)}</p>
+              <button type="button" data-book-note-action="favorite" data-note-id="${escapeHtml(note.id)}" class="shrink-0 rounded-full border border-sage/20 px-3 py-1.5 text-sm ${note.favorite ? "text-sage" : "text-muted"} transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15" aria-pressed="${note.favorite}" aria-label="${note.favorite ? "取消收藏" : "收藏"}">${note.favorite ? "★" : "☆"}</button>
+            </div>
+            <p class="mt-3 text-xs leading-5 text-muted">累计停留 ${escapeHtml(duration)} · 浏览 ${viewCount} 次 · 最近 ${escapeHtml(lastViewed)}</p>
+            <div class="book-actions mt-3 flex flex-wrap gap-2">
+              <button type="button" data-book-note-action="edit" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">编辑</button>
+              <button type="button" data-book-note-action="delete" data-note-id="${escapeHtml(note.id)}" class="rounded-full border border-clay/25 px-4 py-2 text-sm text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
     function renderRecordCharts() {
       const dailySeries = getDailyReadingSeries(readingEvents, 7);
       const maxDailyDuration = Math.max(0, ...dailySeries.map((item) => item.durationMs));
@@ -3534,11 +3879,25 @@
     async function refreshAfterLibraryChange(message) {
       updateNoteCounts();
       renderLibrary();
+      renderBookshelf();
 
       if (!notes.length) {
         currentIndex = -1;
+        reviewScope = "all";
+        activeBookKey = "";
+        activeBookshelfKey = "";
         showImportView(message);
         return;
+      }
+
+      if (reviewScope === "book") {
+        const activeGroup = getBookGroupByKey(activeBookKey);
+        if (!activeGroup) {
+          reviewScope = "all";
+          activeBookKey = "";
+        } else if (!activeGroup.notes.some((note) => note.id === notes[currentIndex]?.id)) {
+          currentIndex = findNoteIndexById(activeGroup.notes[0].id);
+        }
       }
 
       if (currentIndex < 0 || currentIndex >= notes.length) {
@@ -3608,6 +3967,7 @@
       await persistNotes(notes, "note-favorite");
       await createThrottledLocalBackup("note-change");
       renderLibrary();
+      renderBookshelf();
       updateFavoriteButton();
       setStatus(notes[index].favorite ? "已加入收藏。" : "已取消收藏。");
     }
@@ -3662,7 +4022,11 @@
       }
       notes = await storage.clearNotes("clear-notes");
       currentIndex = -1;
+      reviewScope = "all";
+      activeBookKey = "";
+      activeBookshelfKey = "";
       resetNoteForm();
+      renderBookshelf();
       updateSyncStatus();
       showImportView("句子库已清空，可以重新导入。");
     }
@@ -3867,6 +4231,7 @@
 
     elements.reviewScopeButtons.forEach((button) => {
       button.addEventListener("click", () => {
+        activeBookKey = "";
         reviewScope = button.dataset.reviewScope === "favorites" ? "favorites" : "all";
         if (reviewScope === "favorites" && !notes.some((note) => note.favorite)) {
           reviewScope = "all";
@@ -3890,10 +4255,59 @@
 
     elements.settingsBackdrop.addEventListener("click", closeSettings);
     elements.settingsCloseButton.addEventListener("click", closeSettings);
+    elements.openBookshelfButton.addEventListener("click", () => showSettingsView("bookshelf"));
     elements.openLibraryButton.addEventListener("click", () => showSettingsView("library"));
     elements.openStyleButton.addEventListener("click", () => showSettingsView("style"));
     elements.openRecordsButton.addEventListener("click", () => showSettingsView("records"));
     elements.openBackupButton.addEventListener("click", () => showSettingsView("backup"));
+    elements.bookshelfSearchInput.addEventListener("input", renderBookshelf);
+    elements.bookDetailBackButton.addEventListener("click", () => {
+      activeBookshelfKey = "";
+      renderBookshelf();
+    });
+    elements.bookDetailReviewButton.addEventListener("click", () => {
+      if (activeBookshelfKey) {
+        startBookReview(activeBookshelfKey);
+      }
+    });
+
+    elements.bookshelfList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-book-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const bookKey = actionButton.dataset.bookKey;
+      if (actionButton.dataset.bookAction === "open") {
+        activeBookshelfKey = bookKey;
+        renderBookshelf();
+      }
+
+      if (actionButton.dataset.bookAction === "review") {
+        startBookReview(bookKey);
+      }
+    });
+
+    elements.bookDetailNotes.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-book-note-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const noteId = actionButton.dataset.noteId;
+      if (actionButton.dataset.bookNoteAction === "edit") {
+        showSettingsView("library");
+        fillNoteForm(noteId);
+      }
+
+      if (actionButton.dataset.bookNoteAction === "delete") {
+        deleteNote(noteId);
+      }
+
+      if (actionButton.dataset.bookNoteAction === "favorite") {
+        toggleFavorite(noteId);
+      }
+    });
 
     elements.exportBackupButton.addEventListener("click", () => {
       exportFullBackup().catch((error) => {
