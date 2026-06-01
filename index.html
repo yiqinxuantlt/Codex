@@ -569,6 +569,7 @@
 <body class="soft-noise">
   <input id="csvInput" type="file" accept=".csv,text/csv" class="sr-only" />
   <input id="fontInput" type="file" accept=".ttf,.otf,.woff,.woff2,font/*" class="sr-only" />
+  <input id="backupInput" type="file" accept=".json,application/json" class="sr-only" />
 
   <main id="appShell" class="relative z-10 flex min-h-dvh items-center justify-center px-4 py-8 pb-24 sm:px-8 sm:py-10">
     <section id="importView" class="fade-in w-full max-w-xl text-center">
@@ -598,10 +599,23 @@
           <span id="sessionSummary">今日 0 分钟</span>
           <span id="syncModeText">本地模式</span>
           <span id="swipeHint" class="sm:hidden">左滑下一条 · 右滑上一条</span>
+          <span id="reviewScopeControls" class="inline-flex rounded-full border border-borderSoft/10 bg-surface/70 p-1 text-[0.7rem] leading-4 shadow-[0_8px_18px_rgb(var(--color-border)/0.06)]">
+            <button type="button" data-review-scope="all" class="review-scope-button rounded-full px-3 py-1.5 text-muted transition focus:outline-none focus:ring-2 focus:ring-sage/20">全部</button>
+            <button type="button" data-review-scope="favorites" class="review-scope-button rounded-full px-3 py-1.5 text-muted transition focus:outline-none focus:ring-2 focus:ring-sage/20">收藏</button>
+          </span>
         </div>
 
         <article id="readingCard" class="fade-in relative w-full max-w-3xl touch-pan-y rounded-[28px] border border-borderSoft/10 bg-surface px-6 py-8 shadow-card sm:rounded-[30px] sm:px-12 sm:py-12 md:px-16 md:py-14">
           <div class="absolute left-7 top-6 text-6xl leading-none text-sage/15 sm:left-10 sm:top-8 sm:text-7xl">“</div>
+          <button
+            id="favoriteButton"
+            type="button"
+            class="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-borderSoft/10 bg-surface/80 text-xl text-muted shadow-[0_8px_18px_rgb(var(--color-border)/0.06)] transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+            aria-label="收藏当前句子"
+            aria-pressed="false"
+          >
+            ☆
+          </button>
           <div id="quoteWrap" class="relative">
             <p id="noteText" class="whitespace-pre-wrap font-medium tracking-normal text-ink"></p>
             <p id="noteSource" class="mt-8 text-right text-sm leading-7 text-muted sm:text-base"></p>
@@ -768,6 +782,18 @@
             <span>
               <span class="block text-base font-semibold text-ink">阅读记录</span>
               <span class="mt-1 block text-sm leading-6 text-muted">查看每条句子的停留时间</span>
+            </span>
+            <span class="text-xl text-sage" aria-hidden="true">›</span>
+          </button>
+
+          <button
+            id="openBackupButton"
+            type="button"
+            class="flex w-full items-center justify-between rounded-[18px] border border-borderSoft/10 bg-surfaceSoft px-5 py-4 text-left transition hover:border-sage/35 hover:bg-sage/5 focus:outline-none focus:ring-4 focus:ring-sage/15"
+          >
+            <span>
+              <span class="block text-base font-semibold text-ink">备份与恢复</span>
+              <span class="mt-1 block text-sm leading-6 text-muted">导出、恢复、本地快照和数据体检</span>
             </span>
             <span class="text-xl text-sage" aria-hidden="true">›</span>
           </button>
@@ -976,22 +1002,77 @@
         </section>
       </div>
 
+      <div id="settingsBackupView" data-settings-view="backup" class="hidden">
+        <button
+          type="button"
+          data-settings-back
+          class="mt-7 inline-flex items-center rounded-full border border-borderSoft/10 bg-surfaceSoft px-4 py-2 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15"
+        >
+          ← 返回设置
+        </button>
+
+        <section class="mt-6">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-base font-semibold text-ink">数据概览</h3>
+            <span id="backupUpdatedText" class="text-xs text-muted">准备中</span>
+          </div>
+          <div id="backupOverviewGrid" class="mt-3 grid grid-cols-2 gap-3"></div>
+        </section>
+
+        <section class="mt-6 rounded-[20px] border border-sage/15 bg-sage/5 p-4">
+          <p class="text-sm font-semibold text-ink">完整备份</p>
+          <p class="mt-2 text-xs leading-5 text-muted">包含句子库、主题设置、本地字体和阅读记录。</p>
+          <div class="mt-4 grid gap-2 sm:grid-cols-2">
+            <button id="exportBackupButton" type="button" class="rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-paper transition hover:bg-ink/90 focus:outline-none focus:ring-4 focus:ring-sage/20">导出完整备份</button>
+            <button id="importBackupButton" type="button" class="rounded-full border border-sage/25 bg-surface px-4 py-2.5 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">导入备份文件</button>
+            <button id="createSnapshotButton" type="button" class="rounded-full border border-borderSoft/10 bg-surface px-4 py-2.5 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15">创建本地快照</button>
+            <button id="exportRecordsCsvButton" type="button" class="rounded-full border border-borderSoft/10 bg-surface px-4 py-2.5 text-sm text-muted transition hover:border-sage/35 hover:text-sage focus:outline-none focus:ring-4 focus:ring-sage/15">导出阅读记录 CSV</button>
+          </div>
+        </section>
+
+        <section class="mt-6">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-base font-semibold text-ink">本地快照</h3>
+            <span id="backupSnapshotCountText" class="text-sm text-muted">0 份</span>
+          </div>
+          <div id="backupSnapshotsList" class="mt-3 space-y-3"></div>
+        </section>
+
+        <section class="mt-6 rounded-[20px] border border-borderSoft/10 bg-surfaceSoft p-4">
+          <p class="text-sm font-semibold text-ink">桌面备份文件</p>
+          <div id="desktopBackupPanel" class="mt-2 text-xs leading-5 text-muted"></div>
+          <button id="desktopBackupButton" type="button" class="mt-4 hidden rounded-full border border-sage/25 bg-surface px-4 py-2.5 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">写入本地备份文件</button>
+        </section>
+
+        <section class="mt-6">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-base font-semibold text-ink">数据体检</h3>
+            <span id="backupHealthText" class="text-xs text-muted">自动检查</span>
+          </div>
+          <div id="backupHealthList" class="mt-3 space-y-3"></div>
+        </section>
+      </div>
+
       <p id="settingsStatus" class="mt-5 min-h-6 text-sm leading-6 text-clay" role="status" aria-live="polite"></p>
     </aside>
   </div>
 
   <script>
     const DB_NAME = "reading-note-reviewer-db";
-    const DB_VERSION = 2;
+    const DB_VERSION = 3;
     const NOTES_STORE = "notes";
     const SETTINGS_STORE = "settings";
     const FONTS_STORE = "fonts";
     const READING_EVENTS_STORE = "readingEvents";
+    const BACKUPS_STORE = "backups";
     const DISPLAY_SETTINGS_KEY = "display";
     const MIGRATION_KEY = "legacy-localstorage-v1-migrated";
     const LEGACY_NOTES_KEY = "reading-note-reviewer.notes.v1";
     const LEGACY_STYLE_KEY = "reading-note-reviewer.display.v1";
     const CUSTOM_SYNC_ORIGIN_KEY = "reading-note-reviewer.sync-origin.v1";
+    const BACKUP_FILE_TYPE = "reading-note-reviewer-backup";
+    const BACKUP_VERSION = 1;
+    const MAX_LOCAL_BACKUPS = 10;
 
     function isLanSyncHost(hostname) {
       const host = hostname.replace(/^\[|\]$/g, "");
@@ -1084,6 +1165,7 @@
       reviewView: document.getElementById("reviewView"),
       csvInput: document.getElementById("csvInput"),
       fontInput: document.getElementById("fontInput"),
+      backupInput: document.getElementById("backupInput"),
       importStatus: document.getElementById("importStatus"),
       settingsButton: document.getElementById("settingsButton"),
       settingsBackdrop: document.getElementById("settingsBackdrop"),
@@ -1096,6 +1178,7 @@
       openLibraryButton: document.getElementById("openLibraryButton"),
       openStyleButton: document.getElementById("openStyleButton"),
       openRecordsButton: document.getElementById("openRecordsButton"),
+      openBackupButton: document.getElementById("openBackupButton"),
       reimportButton: document.getElementById("reimportButton"),
       clearDataButton: document.getElementById("clearDataButton"),
       libraryList: document.getElementById("libraryList"),
@@ -1116,9 +1199,24 @@
       recordsList: document.getElementById("recordsList"),
       recordsCountText: document.getElementById("recordsCountText"),
       recordsUpdatedText: document.getElementById("recordsUpdatedText"),
+      backupOverviewGrid: document.getElementById("backupOverviewGrid"),
+      backupUpdatedText: document.getElementById("backupUpdatedText"),
+      backupSnapshotCountText: document.getElementById("backupSnapshotCountText"),
+      backupSnapshotsList: document.getElementById("backupSnapshotsList"),
+      backupHealthList: document.getElementById("backupHealthList"),
+      backupHealthText: document.getElementById("backupHealthText"),
+      exportBackupButton: document.getElementById("exportBackupButton"),
+      importBackupButton: document.getElementById("importBackupButton"),
+      createSnapshotButton: document.getElementById("createSnapshotButton"),
+      exportRecordsCsvButton: document.getElementById("exportRecordsCsvButton"),
+      desktopBackupPanel: document.getElementById("desktopBackupPanel"),
+      desktopBackupButton: document.getElementById("desktopBackupButton"),
       sessionSummary: document.getElementById("sessionSummary"),
       swipeHint: document.getElementById("swipeHint"),
+      reviewScopeControls: document.getElementById("reviewScopeControls"),
+      reviewScopeButtons: Array.from(document.querySelectorAll("[data-review-scope]")),
       readingCard: document.getElementById("readingCard"),
+      favoriteButton: document.getElementById("favoriteButton"),
       previousButton: document.getElementById("previousButton"),
       randomButton: document.getElementById("randomButton"),
       nextButton: document.getElementById("nextButton"),
@@ -1144,10 +1242,12 @@
     let registeredFonts = new Map();
     let currentIndex = -1;
     let editingNoteId = null;
+    let reviewScope = "all";
     let displaySettings = { ...DEFAULT_DISPLAY_SETTINGS };
     let readingSession = null;
     let swipeStart = null;
     let isAnimatingCard = false;
+    const backupThrottle = new Map();
     const SWIPE_TRIGGER_PX = 40;
     const SWIPE_AXIS_RATIO = 1.15;
     const HAS_TOUCH_INPUT = "ontouchstart" in window || navigator.maxTouchPoints > 0;
@@ -1182,7 +1282,8 @@
         chapter: cleanText(data.chapter),
         remark: cleanText(data.remark),
         createdAt: cleanText(data.createdAt) || timestamp,
-        updatedAt: cleanText(data.updatedAt) || timestamp
+        updatedAt: cleanText(data.updatedAt) || timestamp,
+        favorite: Boolean(data.favorite)
       };
     }
 
@@ -1275,6 +1376,11 @@
             eventsStore.createIndex("dateKey", "dateKey", { unique: false });
             eventsStore.createIndex("startedAt", "startedAt", { unique: false });
             eventsStore.createIndex("endedAt", "endedAt", { unique: false });
+          }
+          if (!nextDb.objectStoreNames.contains(BACKUPS_STORE)) {
+            const backupsStore = nextDb.createObjectStore(BACKUPS_STORE, { keyPath: "id" });
+            backupsStore.createIndex("createdAt", "createdAt", { unique: false });
+            backupsStore.createIndex("kind", "kind", { unique: false });
           }
         };
 
@@ -1761,10 +1867,62 @@
     }
 
     function updateNoteCounts() {
-      elements.countText.textContent = `${notes.length} 条笔记`;
-      elements.settingsNoteCount.textContent = `${notes.length} 条`;
+      const favoriteCount = notes.filter((note) => note.favorite).length;
+      elements.countText.textContent = reviewScope === "favorites"
+        ? `收藏 ${favoriteCount} 条 · 共 ${notes.length} 条`
+        : `${notes.length} 条笔记 · ${favoriteCount} 条收藏`;
+      elements.settingsNoteCount.textContent = `${notes.length} 条 · 收藏 ${favoriteCount} 条`;
       elements.libraryCountText.textContent = `${notes.length} 条`;
+      updateReviewScopeButtons();
+      updateFavoriteButton();
       updateTopReadingSummary();
+    }
+
+    function updateReviewScopeButtons() {
+      elements.reviewScopeButtons.forEach((button) => {
+        const isActive = button.dataset.reviewScope === reviewScope;
+        button.setAttribute("aria-pressed", String(isActive));
+        button.classList.toggle("bg-ink", isActive);
+        button.classList.toggle("text-paper", isActive);
+        button.classList.toggle("text-muted", !isActive);
+      });
+    }
+
+    function updateFavoriteButton() {
+      if (!elements.favoriteButton) {
+        return;
+      }
+
+      const note = notes[currentIndex];
+      const isFavorite = Boolean(note?.favorite);
+      elements.favoriteButton.textContent = isFavorite ? "★" : "☆";
+      elements.favoriteButton.setAttribute("aria-pressed", String(isFavorite));
+      elements.favoriteButton.setAttribute("aria-label", isFavorite ? "取消收藏当前句子" : "收藏当前句子");
+      elements.favoriteButton.classList.toggle("text-sage", isFavorite);
+      elements.favoriteButton.classList.toggle("text-muted", !isFavorite);
+    }
+
+    function getReviewPool() {
+      if (reviewScope !== "favorites") {
+        return notes;
+      }
+
+      const favorites = notes.filter((note) => note.favorite);
+      if (favorites.length) {
+        return favorites;
+      }
+
+      reviewScope = "all";
+      setStatus("还没有收藏句子，已切回全部回顾。");
+      updateReviewScopeButtons();
+      return notes;
+    }
+
+    function getReviewPoolIndex(pool) {
+      if (currentIndex < 0 || !notes[currentIndex]) {
+        return -1;
+      }
+      return pool.findIndex((note) => note.id === notes[currentIndex].id);
     }
 
     function updateSyncStatus(message = "") {
@@ -1807,6 +1965,537 @@
           lastWriteSource: "local-browser-import"
         }
       };
+    }
+
+    function asArray(value) {
+      return Array.isArray(value) ? value : [];
+    }
+
+    function hasSnapshotData(snapshot) {
+      return Boolean(
+        snapshot.notes?.length ||
+        snapshot.fonts?.length ||
+        snapshot.readingEvents?.length
+      );
+    }
+
+    function normalizeFontRecord(font = {}) {
+      const dataUrl = cleanText(font.dataUrl);
+      if (!dataUrl) {
+        return null;
+      }
+
+      const timestamp = cleanText(font.createdAt) || nowIso();
+      return {
+        ...font,
+        id: cleanText(font.id) || createId("font"),
+        name: cleanText(font.name) || "未命名字体",
+        mimeType: cleanText(font.mimeType) || "font/unknown",
+        dataUrl,
+        createdAt: timestamp
+      };
+    }
+
+    function normalizeReadingEvent(event = {}) {
+      const noteId = cleanText(event.noteId);
+      if (!noteId) {
+        return null;
+      }
+
+      const endedAt = cleanText(event.endedAt) || nowIso();
+      const startedAt = cleanText(event.startedAt) || endedAt;
+      const durationMs = Math.max(0, Number(event.durationMs) || 0);
+      return {
+        ...event,
+        id: cleanText(event.id) || createId("event"),
+        noteId,
+        startedAt,
+        endedAt,
+        durationMs,
+        source: cleanText(event.source),
+        reason: cleanText(event.reason),
+        dateKey: cleanText(event.dateKey) || getEventDateKey({ endedAt, startedAt })
+      };
+    }
+
+    function normalizeStateSnapshot(input = {}) {
+      const source = input.state || input.data || input;
+      const timestamp = cleanText(source.updatedAt) || nowIso();
+      return {
+        schemaVersion: 1,
+        updatedAt: timestamp,
+        notes: sortNotes(asArray(source.notes).map((note) => createNote(note)).filter(Boolean)),
+        settings: sanitizeDisplaySettings(source.settings || {}),
+        fonts: loadAndSortFonts(asArray(source.fonts).map(normalizeFontRecord).filter(Boolean)),
+        readingEvents: asArray(source.readingEvents).map(normalizeReadingEvent).filter(Boolean),
+        meta: {
+          createdAt: cleanText(source.meta?.createdAt) || timestamp,
+          lastWriteSource: cleanText(source.meta?.lastWriteSource) || "backup"
+        }
+      };
+    }
+
+    function normalizeBackupPayload(payload = {}) {
+      const root = payload && typeof payload === "object" ? payload : {};
+      if (root.type === BACKUP_FILE_TYPE && root.data) {
+        return normalizeStateSnapshot(root.data);
+      }
+      if (root.ok && root.state) {
+        return normalizeStateSnapshot(root.state);
+      }
+      return normalizeStateSnapshot(root);
+    }
+
+    function summarizeSnapshot(snapshot = {}) {
+      return {
+        notes: asArray(snapshot.notes).length,
+        favorites: asArray(snapshot.notes).filter((note) => note.favorite).length,
+        fonts: asArray(snapshot.fonts).length,
+        readingEvents: asArray(snapshot.readingEvents).length
+      };
+    }
+
+    function createBackupEnvelope(snapshot, source = "manual-export") {
+      const cleanSnapshot = normalizeStateSnapshot(snapshot);
+      return {
+        type: BACKUP_FILE_TYPE,
+        backupVersion: BACKUP_VERSION,
+        exportedAt: nowIso(),
+        sourceMode: storage.mode,
+        source,
+        summary: summarizeSnapshot(cleanSnapshot),
+        data: {
+          ...cleanSnapshot,
+          updatedAt: nowIso(),
+          meta: {
+            ...cleanSnapshot.meta,
+            lastWriteSource: source
+          }
+        }
+      };
+    }
+
+    async function captureCurrentSnapshot() {
+      if (storage.mode === "lan") {
+        return normalizeStateSnapshot(await storage.loadAll());
+      }
+      return normalizeStateSnapshot(await loadLocalSnapshot());
+    }
+
+    function formatFileStamp(date = new Date()) {
+      const parts = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+        "-",
+        String(date.getHours()).padStart(2, "0"),
+        String(date.getMinutes()).padStart(2, "0"),
+        String(date.getSeconds()).padStart(2, "0")
+      ];
+      return parts.join("");
+    }
+
+    function downloadTextFile(filename, text, type = "application/json;charset=utf-8") {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function loadLocalBackups() {
+      if (!db) {
+        return [];
+      }
+      const rows = await dbGetAll(BACKUPS_STORE);
+      return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    }
+
+    async function pruneLocalBackups() {
+      const rows = await loadLocalBackups();
+      const expired = rows.slice(MAX_LOCAL_BACKUPS);
+      for (const backup of expired) {
+        await dbDelete(BACKUPS_STORE, backup.id);
+      }
+    }
+
+    async function createLocalBackup(source = "manual", kind = "auto") {
+      if (!db) {
+        return null;
+      }
+      const snapshot = await captureCurrentSnapshot();
+      const createdAt = nowIso();
+      const record = {
+        id: createId("backup"),
+        kind,
+        source,
+        createdAt,
+        summary: summarizeSnapshot(snapshot),
+        data: snapshot
+      };
+      await dbPut(BACKUPS_STORE, record);
+      await pruneLocalBackups();
+      return record;
+    }
+
+    async function createThrottledLocalBackup(source, waitMs = 120000) {
+      const lastAt = backupThrottle.get(source) || 0;
+      if (Date.now() - lastAt < waitMs) {
+        return null;
+      }
+      backupThrottle.set(source, Date.now());
+      return createLocalBackup(source, "auto");
+    }
+
+    function mergeByIdWithTime(existingRows, incomingRows, getTime) {
+      const map = new Map();
+      asArray(existingRows).forEach((item) => {
+        if (item?.id) {
+          map.set(item.id, item);
+        }
+      });
+      asArray(incomingRows).forEach((item) => {
+        if (!item?.id) {
+          return;
+        }
+        const current = map.get(item.id);
+        if (!current || String(getTime(item)) >= String(getTime(current))) {
+          map.set(item.id, item);
+        }
+      });
+      return Array.from(map.values());
+    }
+
+    function mergeSnapshots(currentSnapshot, incomingSnapshot) {
+      const current = normalizeStateSnapshot(currentSnapshot);
+      const incoming = normalizeStateSnapshot(incomingSnapshot);
+      return normalizeStateSnapshot({
+        notes: mergeByIdWithTime(current.notes, incoming.notes, (item) => item.updatedAt || item.createdAt),
+        settings: sanitizeDisplaySettings({ ...current.settings, ...incoming.settings }),
+        fonts: mergeByIdWithTime(current.fonts, incoming.fonts, (item) => item.createdAt),
+        readingEvents: mergeByIdWithTime(current.readingEvents, incoming.readingEvents, (item) => item.endedAt || item.startedAt),
+        meta: {
+          createdAt: current.meta?.createdAt || incoming.meta?.createdAt || nowIso(),
+          lastWriteSource: "backup-merge"
+        }
+      });
+    }
+
+    async function replaceCurrentState(snapshot, source = "backup-restore") {
+      const cleanSnapshot = normalizeStateSnapshot(snapshot);
+      if (storage.mode === "lan") {
+        return storage.replaceRemoteState(cleanSnapshot, source);
+      }
+
+      await persistNotesToDb(cleanSnapshot.notes);
+      await persistDisplaySettingsToDb(cleanSnapshot.settings);
+      await dbReplaceAll(FONTS_STORE, cleanSnapshot.fonts);
+      await dbReplaceAll(READING_EVENTS_STORE, cleanSnapshot.readingEvents);
+      return {
+        ...cleanSnapshot,
+        updatedAt: ""
+      };
+    }
+
+    async function applySnapshot(snapshot, mode = "replace", source = "backup-restore") {
+      const cleanSnapshot = normalizeStateSnapshot(snapshot);
+      if (mode === "merge") {
+        const currentSnapshot = await captureCurrentSnapshot();
+        return replaceCurrentState(mergeSnapshots(currentSnapshot, cleanSnapshot), source);
+      }
+      return replaceCurrentState(cleanSnapshot, source);
+    }
+
+    async function hydrateFromState(state, message = "数据已恢复。") {
+      const cleanState = normalizeStateSnapshot(state);
+      const previousNoteId = notes[currentIndex]?.id || "";
+      notes = cleanState.notes;
+      readingEvents = cleanState.readingEvents;
+      customFonts = cleanState.fonts;
+      displaySettings = cleanState.settings;
+      await registerFonts(customFonts);
+      applyDisplaySettings();
+      updateReadingStats();
+      updateNoteCounts();
+      renderLibrary();
+      renderReadingRecords();
+      updateReviewScopeButtons();
+      updateFavoriteButton();
+      updateSyncStatus(message);
+
+      if (!notes.length) {
+        currentIndex = -1;
+        showImportView(message);
+        return;
+      }
+
+      const preferredIndex = findNoteIndexById(previousNoteId);
+      currentIndex = preferredIndex >= 0 ? preferredIndex : 0;
+      elements.importView.classList.add("hidden");
+      elements.reviewView.classList.remove("hidden");
+      elements.settingsButton.classList.remove("hidden");
+      elements.settingsButton.classList.add("flex");
+      displayNoteAt(currentIndex, false);
+      if (!isSettingsOpen()) {
+        startReadingSession(notes[currentIndex].id, "restore");
+      }
+      setStatus(message);
+    }
+
+    function getBackupSourceLabel(source = "") {
+      const labels = {
+        "manual": "手动快照",
+        "manual-snapshot": "手动快照",
+        "csv-import-before-replace": "CSV 导入前",
+        "clear-notes-before": "清空前",
+        "restore-before-replace": "覆盖恢复前",
+        "snapshot-restore-before": "快照恢复前",
+        "note-change": "句子修改",
+        "font-change": "字体修改",
+        "style-change": "显示设置"
+      };
+      return labels[source] || source || "自动快照";
+    }
+
+    async function exportFullBackup() {
+      await commitReadingSession("backup-export");
+      const snapshot = await captureCurrentSnapshot();
+      const envelope = createBackupEnvelope(snapshot, "manual-export");
+      downloadTextFile(`reading-note-reviewer-backup-${formatFileStamp()}.json`, JSON.stringify(envelope, null, 2));
+      setStatus("完整备份已导出。");
+    }
+
+    async function handleBackupFile(file) {
+      if (!file) {
+        return;
+      }
+
+      try {
+        const raw = await file.text();
+        const parsed = JSON.parse(raw);
+        const snapshot = normalizeBackupPayload(parsed);
+        if (!hasSnapshotData(snapshot)) {
+          setStatus("这个备份文件里没有可恢复的数据。");
+          return;
+        }
+
+        const summary = summarizeSnapshot(snapshot);
+        const confirmed = window.confirm(`读取到备份：\n\n句子：${summary.notes} 条\n收藏：${summary.favorites} 条\n字体：${summary.fonts} 个\n阅读记录：${summary.readingEvents} 条\n\n继续导入吗？`);
+        if (!confirmed) {
+          return;
+        }
+
+        const useReplace = window.confirm("选择“确定”会完全覆盖当前数据；选择“取消”会合并导入。");
+        await commitReadingSession("backup-import");
+        await createLocalBackup(useReplace ? "restore-before-replace" : "restore-before-merge", "auto");
+        const state = await applySnapshot(snapshot, useReplace ? "replace" : "merge", useReplace ? "backup-replace" : "backup-merge");
+        await hydrateFromState(state, useReplace ? "备份已覆盖恢复。" : "备份已合并导入。");
+        await renderBackupCenter();
+      } catch (error) {
+        console.error(error);
+        setStatus("备份文件格式无法识别，请确认是本应用导出的 JSON。");
+      } finally {
+        elements.backupInput.value = "";
+      }
+    }
+
+    async function restoreLocalBackup(backupId) {
+      const backups = await loadLocalBackups();
+      const backup = backups.find((item) => item.id === backupId);
+      if (!backup) {
+        setStatus("没有找到这份快照。");
+        return;
+      }
+
+      const summary = backup.summary || summarizeSnapshot(backup.data);
+      const confirmed = window.confirm(`恢复这份快照吗？\n\n创建时间：${formatDateTime(backup.createdAt)}\n句子：${summary.notes} 条\n字体：${summary.fonts} 个\n阅读记录：${summary.readingEvents} 条\n\n当前数据会先自动保存为新快照。`);
+      if (!confirmed) {
+        return;
+      }
+
+      await commitReadingSession("snapshot-restore");
+      await createLocalBackup("snapshot-restore-before", "auto");
+      const state = await applySnapshot(backup.data, "replace", "snapshot-restore");
+      await hydrateFromState(state, "已从本地快照恢复。");
+      await renderBackupCenter();
+    }
+
+    async function deleteLocalBackup(backupId) {
+      if (!window.confirm("确定删除这份本地快照吗？")) {
+        return;
+      }
+      await dbDelete(BACKUPS_STORE, backupId);
+      await renderBackupCenter();
+      setStatus("本地快照已删除。");
+    }
+
+    function getDataHealthReport() {
+      const noteKeys = new Map();
+      const duplicates = [];
+      notes.forEach((note) => {
+        const key = [note.content, note.book, note.author]
+          .map((part) => cleanText(part).replace(/\s+/g, " "))
+          .join("|");
+        const group = noteKeys.get(key) || [];
+        group.push(note);
+        noteKeys.set(key, group);
+      });
+      noteKeys.forEach((group) => {
+        if (group.length > 1) {
+          duplicates.push(group);
+        }
+      });
+
+      const noteIds = new Set(notes.map((note) => note.id));
+      const orphanEvents = readingEvents.filter((event) => !noteIds.has(event.noteId));
+      const largeFonts = customFonts.filter((font) => String(font.dataUrl || "").length > 1024 * 1024);
+      return {
+        emptyNotes: notes.filter((note) => !cleanText(note.content)).length,
+        duplicates,
+        orphanEvents,
+        largeFonts
+      };
+    }
+
+    function renderBackupHealth() {
+      const report = getDataHealthReport();
+      const duplicatePreview = report.duplicates.slice(0, 3).map((group) => `
+        <li class="rounded-[12px] bg-surface px-3 py-2">
+          <span class="block truncate text-ink">${escapeHtml(group[0].content)}</span>
+          <span class="text-xs text-muted">${group.length} 条疑似重复</span>
+        </li>
+      `).join("");
+
+      elements.backupHealthText.textContent = report.emptyNotes || report.duplicates.length || report.orphanEvents.length || report.largeFonts.length
+        ? "发现可检查项"
+        : "状态良好";
+      elements.backupHealthList.innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+          ${[
+            ["空内容", `${report.emptyNotes} 条`],
+            ["疑似重复", `${report.duplicates.length} 组`],
+            ["孤立记录", `${report.orphanEvents.length} 条`],
+            ["大字体", `${report.largeFonts.length} 个`]
+          ].map(([label, value]) => `
+            <div class="rounded-[16px] border border-borderSoft/10 bg-surfaceSoft px-4 py-3">
+              <p class="text-xs text-muted">${label}</p>
+              <p class="mt-1 text-lg font-semibold text-ink">${value}</p>
+            </div>
+          `).join("")}
+        </div>
+        ${duplicatePreview ? `
+          <div class="rounded-[18px] border border-sage/15 bg-sage/5 p-4">
+            <p class="text-sm font-semibold text-ink">重复项预览</p>
+            <ul class="mt-3 space-y-2 text-sm leading-6 text-muted">${duplicatePreview}</ul>
+          </div>
+        ` : ""}
+      `;
+    }
+
+    async function renderBackupCenter() {
+      if (!elements.backupOverviewGrid) {
+        return;
+      }
+
+      const backups = await loadLocalBackups();
+      const summary = summarizeSnapshot({ notes, fonts: customFonts, readingEvents });
+      const latestBackup = backups[0];
+      elements.backupUpdatedText.textContent = latestBackup ? `最近 ${formatDateTime(latestBackup.createdAt)}` : "暂无快照";
+      elements.backupSnapshotCountText.textContent = `${backups.length} 份`;
+      elements.backupOverviewGrid.innerHTML = [
+        ["句子", `${summary.notes} 条`],
+        ["收藏", `${summary.favorites} 条`],
+        ["字体", `${summary.fonts} 个`],
+        ["阅读记录", `${summary.readingEvents} 条`]
+      ].map(([label, value]) => `
+        <div class="rounded-[18px] border border-sage/15 bg-sage/5 px-4 py-4">
+          <p class="text-xs leading-5 text-muted">${label}</p>
+          <p class="mt-1 text-xl font-semibold text-ink">${value}</p>
+        </div>
+      `).join("");
+
+      elements.backupSnapshotsList.innerHTML = backups.length ? backups.map((backup) => {
+        const itemSummary = backup.summary || summarizeSnapshot(backup.data);
+        return `
+          <article class="rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-ink">${escapeHtml(getBackupSourceLabel(backup.source))}</p>
+                <p class="mt-1 text-xs leading-5 text-muted">${escapeHtml(formatDateTime(backup.createdAt))}</p>
+              </div>
+              <span class="rounded-full bg-surface px-3 py-1 text-xs text-muted">${escapeHtml(backup.kind || "auto")}</span>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted">
+              <span class="rounded-full bg-surface px-2 py-1 text-center">${itemSummary.notes} 句</span>
+              <span class="rounded-full bg-surface px-2 py-1 text-center">${itemSummary.fonts} 字体</span>
+              <span class="rounded-full bg-surface px-2 py-1 text-center">${itemSummary.readingEvents} 记录</span>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" data-backup-action="restore" data-backup-id="${escapeHtml(backup.id)}" class="rounded-full border border-sage/25 px-4 py-2 text-sm text-sage transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15">恢复</button>
+              <button type="button" data-backup-action="delete" data-backup-id="${escapeHtml(backup.id)}" class="rounded-full border border-clay/25 px-4 py-2 text-sm text-clay transition hover:bg-clay/10 focus:outline-none focus:ring-4 focus:ring-clay/15">删除</button>
+            </div>
+          </article>
+        `;
+      }).join("") : `
+        <div class="rounded-[18px] border border-dashed border-sage/30 bg-surfaceSoft px-5 py-8 text-center text-sm leading-6 text-muted">
+          还没有本地快照。高风险操作前会自动保存，也可以手动创建。
+        </div>
+      `;
+
+      if (window.showSaveFilePicker) {
+        elements.desktopBackupPanel.textContent = "当前浏览器支持写入本地文件。点击后选择保存位置，即可生成一份完整备份。";
+        elements.desktopBackupButton.classList.remove("hidden");
+      } else {
+        elements.desktopBackupPanel.textContent = "当前环境不支持绑定本地文件，可使用“导出完整备份”保存数据。";
+        elements.desktopBackupButton.classList.add("hidden");
+      }
+      renderBackupHealth();
+    }
+
+    async function writeBackupToChosenFile() {
+      if (!window.showSaveFilePicker) {
+        setStatus("当前环境不支持写入本地备份文件。");
+        return;
+      }
+      await commitReadingSession("desktop-backup");
+      const envelope = createBackupEnvelope(await captureCurrentSnapshot(), "desktop-file-backup");
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `reading-note-reviewer-backup-${formatFileStamp()}.json`,
+        types: [{
+          description: "JSON backup",
+          accept: { "application/json": [".json"] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(JSON.stringify(envelope, null, 2));
+      await writable.close();
+      setStatus("本地备份文件已写入。");
+    }
+
+    function exportReadingRecordsCsv() {
+      const rows = readingEvents.map((event) => {
+        const note = notes.find((item) => item.id === event.noteId);
+        return {
+          noteId: event.noteId,
+          book: note?.book || "已删除句子",
+          author: note?.author || "",
+          content: note?.content || "",
+          startedAt: event.startedAt,
+          endedAt: event.endedAt,
+          durationMs: event.durationMs,
+          durationText: formatDuration(event.durationMs),
+          dateKey: getEventDateKey(event),
+          source: event.source || "",
+          reason: event.reason || ""
+        };
+      });
+      const csv = Papa.unparse(rows);
+      downloadTextFile(`reading-records-${formatFileStamp()}.csv`, csv, "text/csv;charset=utf-8");
+      setStatus("阅读记录 CSV 已导出。");
     }
 
     async function updateMigrationPrompt(remoteState) {
@@ -2043,6 +2732,7 @@
 
       applyDisplaySettings();
       await persistDisplaySettings("display-setting");
+      await createThrottledLocalBackup("style-change");
       setStatus("显示设置已保存。");
     }
 
@@ -2125,6 +2815,7 @@
         displaySettings.fontMode = "custom";
         displaySettings.customFontId = font.id;
         await persistDisplaySettings("font-import");
+        await createThrottledLocalBackup("font-change");
         applyDisplaySettings();
         setStatus("本地字体已导入并应用。");
       } catch {
@@ -2200,6 +2891,7 @@
       displaySettings.customFontId = font.id;
       applyDisplaySettings();
       await persistDisplaySettings("font-select");
+      await createThrottledLocalBackup("style-change");
       setStatus("本地字体已应用。");
     }
 
@@ -2214,6 +2906,7 @@
       }
 
       customFonts = await storage.deleteFont(fontId);
+      await createThrottledLocalBackup("font-change");
 
       if (displaySettings.fontMode === "custom" && displaySettings.customFontId === fontId) {
         displaySettings.fontMode = "builtin";
@@ -2244,6 +2937,13 @@
 
       if (viewName === "records") {
         renderReadingRecords();
+      }
+
+      if (viewName === "backup") {
+        renderBackupCenter().catch((error) => {
+          console.error(error);
+          setStatus("备份中心加载失败，请稍后重试。");
+        });
       }
 
       if (viewName === "home") {
@@ -2300,6 +3000,7 @@
 
       elements.noteText.textContent = note.content;
       elements.noteSource.textContent = `—— ${source}`;
+      updateFavoriteButton();
 
       if (animation) {
         const isDirectionalAnimation = animation === "next" || animation === "previous";
@@ -2321,15 +3022,17 @@
     }
 
     function getRandomIndex() {
-      if (notes.length <= 1) {
-        return 0;
+      const pool = getReviewPool();
+      if (pool.length <= 1) {
+        return pool[0] ? findNoteIndexById(pool[0].id) : 0;
       }
 
-      let nextIndex = currentIndex;
-      while (nextIndex === currentIndex) {
-        nextIndex = Math.floor(Math.random() * notes.length);
+      const currentNoteId = notes[currentIndex]?.id || "";
+      let nextNote = pool.find((note) => note.id !== currentNoteId) || pool[0];
+      while (nextNote.id === currentNoteId && pool.length > 1) {
+        nextNote = pool[Math.floor(Math.random() * pool.length)];
       }
-      return nextIndex;
+      return findNoteIndexById(nextNote.id);
     }
 
     async function switchToNote(index, source = "random", animation = "random") {
@@ -2365,8 +3068,10 @@
         return;
       }
 
-      const nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
-      switchToNote(nextIndex, source, "next");
+      const pool = getReviewPool();
+      const poolIndex = getReviewPoolIndex(pool);
+      const nextNote = pool[poolIndex < 0 ? 0 : (poolIndex + 1) % pool.length];
+      switchToNote(findNoteIndexById(nextNote.id), source, "next");
     }
 
     function showPreviousNote(source = "previous") {
@@ -2375,8 +3080,10 @@
         return;
       }
 
-      const previousIndex = currentIndex < 0 ? notes.length - 1 : currentIndex - 1;
-      switchToNote(previousIndex, source, "previous");
+      const pool = getReviewPool();
+      const poolIndex = getReviewPoolIndex(pool);
+      const previousNote = pool[poolIndex < 0 ? pool.length - 1 : (poolIndex - 1 + pool.length) % pool.length];
+      switchToNote(findNoteIndexById(previousNote.id), source, "previous");
     }
 
     function parseCsvFile(file) {
@@ -2410,6 +3117,9 @@
 
           try {
             await commitReadingSession("reimport");
+            if (notes.length || readingEvents.length || customFonts.length) {
+              await createLocalBackup("csv-import-before-replace", "auto");
+            }
             await persistNotes(extracted, "csv-import");
             currentIndex = -1;
             setStatus("");
@@ -2470,9 +3180,13 @@
         const viewCount = stats?.viewCount || 0;
         const duration = stats?.totalDurationMs ? formatDuration(stats.totalDurationMs) : "0秒";
         const lastViewed = stats?.lastViewedAt ? formatDateTime(stats.lastViewedAt) : "尚未浏览";
+        const favoriteLabel = note.favorite ? "取消收藏" : "收藏";
         return `
           <article class="rounded-[18px] border border-borderSoft/10 bg-surfaceSoft p-4 transition hover:border-sage/25">
-            <p class="note-preview text-sm leading-7 text-ink">${escapeHtml(note.content)}</p>
+            <div class="flex items-start gap-3">
+              <p class="note-preview min-w-0 flex-1 text-sm leading-7 text-ink">${escapeHtml(note.content)}</p>
+              <button type="button" data-note-action="favorite" data-note-id="${escapeHtml(note.id)}" class="shrink-0 rounded-full border border-sage/20 px-3 py-1.5 text-sm ${note.favorite ? "text-sage" : "text-muted"} transition hover:bg-sage/10 focus:outline-none focus:ring-4 focus:ring-sage/15" aria-pressed="${note.favorite}" aria-label="${favoriteLabel}">${note.favorite ? "★" : "☆"}</button>
+            </div>
             <p class="mt-2 text-xs leading-5 text-muted">${escapeHtml(source)}</p>
             <div class="mt-3 grid grid-cols-3 gap-2 text-xs text-muted">
               <span class="rounded-full bg-surface px-3 py-2 text-center">${viewCount} 次</span>
@@ -2673,7 +3387,8 @@
         chapter: existingNote?.chapter,
         remark: existingNote?.remark,
         createdAt: existingNote?.createdAt,
-        updatedAt: nowIso()
+        updatedAt: nowIso(),
+        favorite: existingNote?.favorite
       });
 
       if (!note) {
@@ -2685,6 +3400,7 @@
       if (!editingNoteId) {
         notes.push(note);
         await persistNotes(notes, "note-create");
+        await createThrottledLocalBackup("note-change");
         if (currentIndex < 0) {
           currentIndex = findNoteIndexById(note.id);
         }
@@ -2697,10 +3413,29 @@
       if (updatedIndex >= 0) {
         notes[updatedIndex] = note;
         await persistNotes(notes, "note-edit");
+        await createThrottledLocalBackup("note-change");
       }
 
       resetNoteForm();
       await refreshAfterLibraryChange("已更新句子。");
+    }
+
+    async function toggleFavorite(noteId) {
+      const index = findNoteIndexById(noteId);
+      if (index < 0) {
+        return;
+      }
+
+      notes[index] = {
+        ...notes[index],
+        favorite: !notes[index].favorite,
+        updatedAt: nowIso()
+      };
+      await persistNotes(notes, "note-favorite");
+      await createThrottledLocalBackup("note-change");
+      renderLibrary();
+      updateFavoriteButton();
+      setStatus(notes[index].favorite ? "已加入收藏。" : "已取消收藏。");
     }
 
     async function deleteNote(noteId) {
@@ -2719,6 +3454,7 @@
         await commitReadingSession("delete-current");
       }
       notes = await storage.deleteNote(noteId);
+      await createThrottledLocalBackup("note-change");
 
       if (!notes.length) {
         resetNoteForm();
@@ -2747,6 +3483,9 @@
       }
 
       await commitReadingSession("clear-notes");
+      if (notes.length || readingEvents.length) {
+        await createLocalBackup("clear-notes-before", "auto");
+      }
       notes = await storage.clearNotes("clear-notes");
       currentIndex = -1;
       resetNoteForm();
@@ -2938,9 +3677,33 @@
       importFontFile(event.target.files[0]);
     });
 
+    elements.backupInput.addEventListener("change", (event) => {
+      handleBackupFile(event.target.files[0]);
+    });
+
     elements.previousButton.addEventListener("click", () => showPreviousNote("previous"));
     elements.randomButton.addEventListener("click", () => showRandomNote("random"));
     elements.nextButton.addEventListener("click", () => showNextNote("next"));
+    elements.favoriteButton.addEventListener("click", () => {
+      const note = notes[currentIndex];
+      if (note) {
+        toggleFavorite(note.id);
+      }
+    });
+
+    elements.reviewScopeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        reviewScope = button.dataset.reviewScope === "favorites" ? "favorites" : "all";
+        if (reviewScope === "favorites" && !notes.some((note) => note.favorite)) {
+          reviewScope = "all";
+          updateNoteCounts();
+          setStatus("还没有收藏句子。");
+          return;
+        }
+        updateNoteCounts();
+        showRandomNote(reviewScope === "favorites" ? "favorites" : "all");
+      });
+    });
 
     elements.settingsButton.addEventListener("click", () => {
       if (isSettingsOpen()) {
@@ -2956,6 +3719,64 @@
     elements.openLibraryButton.addEventListener("click", () => showSettingsView("library"));
     elements.openStyleButton.addEventListener("click", () => showSettingsView("style"));
     elements.openRecordsButton.addEventListener("click", () => showSettingsView("records"));
+    elements.openBackupButton.addEventListener("click", () => showSettingsView("backup"));
+
+    elements.exportBackupButton.addEventListener("click", () => {
+      exportFullBackup().catch((error) => {
+        console.error(error);
+        setStatus("备份导出失败，请稍后重试。");
+      });
+    });
+
+    elements.importBackupButton.addEventListener("click", () => {
+      elements.backupInput.value = "";
+      elements.backupInput.click();
+    });
+
+    elements.createSnapshotButton.addEventListener("click", () => {
+      createLocalBackup("manual-snapshot", "manual")
+        .then(() => renderBackupCenter())
+        .then(() => setStatus("本地快照已创建。"))
+        .catch((error) => {
+          console.error(error);
+          setStatus("本地快照创建失败。");
+        });
+    });
+
+    elements.exportRecordsCsvButton.addEventListener("click", exportReadingRecordsCsv);
+
+    elements.desktopBackupButton.addEventListener("click", () => {
+      writeBackupToChosenFile().catch((error) => {
+        if (error?.name === "AbortError") {
+          setStatus("已取消写入本地备份文件。");
+          return;
+        }
+        console.error(error);
+        setStatus("写入本地备份文件失败。");
+      });
+    });
+
+    elements.backupSnapshotsList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-backup-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const backupId = actionButton.dataset.backupId;
+      if (actionButton.dataset.backupAction === "restore") {
+        restoreLocalBackup(backupId).catch((error) => {
+          console.error(error);
+          setStatus("快照恢复失败。");
+        });
+      }
+
+      if (actionButton.dataset.backupAction === "delete") {
+        deleteLocalBackup(backupId).catch((error) => {
+          console.error(error);
+          setStatus("快照删除失败。");
+        });
+      }
+    });
 
     elements.reimportButton.addEventListener("click", () => {
       setStatus("请选择新的 CSV 文件。");
@@ -3026,6 +3847,10 @@
 
       if (actionButton.dataset.noteAction === "delete") {
         deleteNote(noteId);
+      }
+
+      if (actionButton.dataset.noteAction === "favorite") {
+        toggleFavorite(noteId);
       }
     });
 

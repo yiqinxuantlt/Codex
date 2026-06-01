@@ -7,8 +7,10 @@ const PORT = Number(process.env.PORT || 8787);
 const ROOT = __dirname;
 const INDEX_FILE = path.join(ROOT, "index.html");
 const DATA_FILE = path.join(ROOT, process.env.SYNC_DATA_FILE || "sync-data.json");
+const BACKUP_DIR = path.join(ROOT, process.env.SYNC_BACKUP_DIR || "backups");
 const MAX_BODY_BYTES = 32 * 1024 * 1024;
 const SCHEMA_VERSION = 1;
+const MAX_SERVER_BACKUPS = 10;
 const STATIC_ROUTES = new Map([
   ["/", { file: INDEX_FILE, type: "text/html; charset=utf-8", cache: "no-cache" }],
   ["/index.html", { file: INDEX_FILE, type: "text/html; charset=utf-8", cache: "no-cache" }],
@@ -25,6 +27,21 @@ const STATIC_ROUTES = new Map([
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function formatBackupStamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    "-",
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+    "-",
+    String(date.getMilliseconds()).padStart(3, "0")
+  ].join("");
 }
 
 function emptyState() {
@@ -88,11 +105,49 @@ function loadState() {
   }
 }
 
+function pruneServerBackups() {
+  if (!fs.existsSync(BACKUP_DIR)) {
+    return;
+  }
+
+  const backups = fs.readdirSync(BACKUP_DIR)
+    .filter((name) => /^sync-data-\d{8}-\d{6}-\d{3}\.json$/.test(name))
+    .map((name) => ({
+      name,
+      fullPath: path.join(BACKUP_DIR, name)
+    }))
+    .sort((a, b) => b.name.localeCompare(a.name));
+
+  backups.slice(MAX_SERVER_BACKUPS).forEach((item) => {
+    try {
+      fs.unlinkSync(item.fullPath);
+    } catch (error) {
+      console.warn("Unable to prune old backup:", error.message);
+    }
+  });
+}
+
+function backupExistingDataFile() {
+  if (!fs.existsSync(DATA_FILE)) {
+    return;
+  }
+
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const backupPath = path.join(BACKUP_DIR, `sync-data-${formatBackupStamp()}.json`);
+    fs.copyFileSync(DATA_FILE, backupPath);
+    pruneServerBackups();
+  } catch (error) {
+    console.warn("Unable to create sync data backup:", error.message);
+  }
+}
+
 function saveState(nextState, source = "api") {
   const state = normalizeState(nextState);
   state.updatedAt = nowIso();
   state.meta.lastWriteSource = source;
   const tempFile = `${DATA_FILE}.tmp`;
+  backupExistingDataFile();
   fs.writeFileSync(tempFile, JSON.stringify(state, null, 2), "utf8");
   fs.renameSync(tempFile, DATA_FILE);
   return state;
@@ -304,5 +359,6 @@ http.createServer(handleRequest).listen(PORT, "0.0.0.0", () => {
   getLanAddresses().forEach((address) => {
     console.log(`Mobile:  http://${address}:${PORT}/`);
   });
+  console.log(`Backups: ${BACKUP_DIR}`);
   console.log("Use only on trusted Wi-Fi. Close this window to stop syncing.");
 });

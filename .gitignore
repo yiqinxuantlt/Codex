@@ -2,6 +2,7 @@
 sync-data.json
 sync-data.json.tmp
 sync-data.json.broken-*
+backups/
 *.broken-*
 
 # Temporary verification files
