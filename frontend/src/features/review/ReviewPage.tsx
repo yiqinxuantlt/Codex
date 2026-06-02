@@ -1,6 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent
+} from "react";
 import { Link } from "react-router-dom";
 import { api, type NoteResponse } from "../../api/client";
+
+type MotionDirection = "none" | "previous" | "next" | "random";
+
+const SWIPE_THRESHOLD = 52;
+const SWIPE_MAX_OFFSET = 92;
 
 function formatSource(note: NoteResponse) {
   const title = note.bookTitle?.trim() || "未命名";
@@ -22,16 +35,40 @@ function nextRandomIndex(length: number, currentIndex: number) {
   return nextIndex;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isInteractiveTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && Boolean(target.closest("button, a, input, textarea, select"));
+}
+
 export function ReviewPage() {
   const [notes, setNotes] = useState<NoteResponse[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [motion, setMotion] = useState<MotionDirection>("none");
+  const [motionKey, setMotionKey] = useState(0);
   const noteIdRef = useRef<number | null>(null);
   const startedAtRef = useRef<number | null>(null);
+  const pointerRef = useRef({
+    id: -1,
+    startX: 0,
+    startY: 0,
+    deltaX: 0,
+    deltaY: 0,
+    swiping: false
+  });
 
-  const currentNote = notes[index] ?? null;
+  const visibleNotes = useMemo(
+    () => (showFavoritesOnly ? notes.filter((note) => note.favorite) : notes),
+    [notes, showFavoritesOnly]
+  );
+  const currentNote = visibleNotes[index] ?? null;
 
   const loadNotes = useCallback(async () => {
     setLoading(true);
@@ -87,6 +124,10 @@ export function ReviewPage() {
   }, [loadNotes]);
 
   useEffect(() => {
+    setIndex((currentIndex) => (visibleNotes.length ? Math.min(currentIndex, visibleNotes.length - 1) : 0));
+  }, [visibleNotes.length]);
+
+  useEffect(() => {
     if (!currentNote) {
       noteIdRef.current = null;
       startedAtRef.current = null;
@@ -127,23 +168,151 @@ export function ReviewPage() {
   }, [flushDwell]);
 
   const notePosition = useMemo(() => {
-    if (!currentNote || !notes.length) {
+    if (!currentNote || !visibleNotes.length) {
       return "";
     }
 
-    return `${index + 1} / ${notes.length}`;
-  }, [currentNote, index, notes.length]);
+    return `${index + 1} / ${visibleNotes.length}`;
+  }, [currentNote, index, visibleNotes.length]);
 
-  function movePrevious() {
-    setIndex((currentIndex) => (notes.length ? (currentIndex - 1 + notes.length) % notes.length : 0));
+  const movePrevious = useCallback(() => {
+    if (!visibleNotes.length) {
+      return;
+    }
+
+    setMotion("previous");
+    setMotionKey((currentKey) => currentKey + 1);
+    setIndex((currentIndex) => (currentIndex - 1 + visibleNotes.length) % visibleNotes.length);
+  }, [visibleNotes.length]);
+
+  const moveNext = useCallback(() => {
+    if (!visibleNotes.length) {
+      return;
+    }
+
+    setMotion("next");
+    setMotionKey((currentKey) => currentKey + 1);
+    setIndex((currentIndex) => (currentIndex + 1) % visibleNotes.length);
+  }, [visibleNotes.length]);
+
+  const moveRandom = useCallback(() => {
+    if (!visibleNotes.length) {
+      return;
+    }
+
+    setMotion("random");
+    setMotionKey((currentKey) => currentKey + 1);
+    setIndex((currentIndex) => nextRandomIndex(visibleNotes.length, currentIndex));
+  }, [visibleNotes.length]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isInteractiveTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        movePrevious();
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        moveNext();
+      }
+
+      if (event.key === " " || event.key === "Spacebar") {
+        event.preventDefault();
+        moveRandom();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [moveNext, movePrevious, moveRandom]);
+
+  function resetPointer(event: PointerEvent<HTMLElement>) {
+    if (pointerRef.current.id !== event.pointerId) {
+      return;
+    }
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // The browser may have already released it after a cancelled gesture.
+    }
+
+    pointerRef.current = {
+      id: -1,
+      startX: 0,
+      startY: 0,
+      deltaX: 0,
+      deltaY: 0,
+      swiping: false
+    };
+    setDragOffset(0);
   }
 
-  function moveNext() {
-    setIndex((currentIndex) => (notes.length ? (currentIndex + 1) % notes.length : 0));
+  function handlePointerDown(event: PointerEvent<HTMLElement>) {
+    if (visibleNotes.length <= 1 || isInteractiveTarget(event.target)) {
+      return;
+    }
+
+    pointerRef.current = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      deltaX: 0,
+      deltaY: 0,
+      swiping: false
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function moveRandom() {
-    setIndex((currentIndex) => nextRandomIndex(notes.length, currentIndex));
+  function handlePointerMove(event: PointerEvent<HTMLElement>) {
+    const pointer = pointerRef.current;
+
+    if (pointer.id !== event.pointerId) {
+      return;
+    }
+
+    pointer.deltaX = event.clientX - pointer.startX;
+    pointer.deltaY = event.clientY - pointer.startY;
+
+    if (!pointer.swiping && Math.abs(pointer.deltaX) > 12 && Math.abs(pointer.deltaX) > Math.abs(pointer.deltaY) * 1.15) {
+      pointer.swiping = true;
+    }
+
+    if (!pointer.swiping) {
+      return;
+    }
+
+    event.preventDefault();
+    setDragOffset(clamp(pointer.deltaX, -SWIPE_MAX_OFFSET, SWIPE_MAX_OFFSET));
+  }
+
+  function handlePointerUp(event: PointerEvent<HTMLElement>) {
+    const pointer = pointerRef.current;
+
+    if (pointer.id !== event.pointerId) {
+      return;
+    }
+
+    const shouldTurn = pointer.swiping && Math.abs(pointer.deltaX) >= SWIPE_THRESHOLD;
+    const direction = pointer.deltaX > 0 ? "next" : "previous";
+
+    resetPointer(event);
+
+    if (!shouldTurn) {
+      return;
+    }
+
+    if (direction === "next") {
+      moveNext();
+      return;
+    }
+
+    movePrevious();
   }
 
   async function toggleFavorite() {
@@ -162,6 +331,11 @@ export function ReviewPage() {
     } finally {
       setFavoriteBusy(false);
     }
+  }
+
+  function toggleFavoritesFilter() {
+    setShowFavoritesOnly((currentValue) => !currentValue);
+    setIndex(0);
   }
 
   if (loading) {
@@ -186,6 +360,20 @@ export function ReviewPage() {
     );
   }
 
+  if (!currentNote && notes.length && showFavoritesOnly) {
+    return (
+      <section className="page page-narrow">
+        <div className="empty-state">
+          <h1>还没有收藏的句子</h1>
+          <p>取消筛选后可以继续浏览全部笔记。</p>
+          <button className="secondary-button" type="button" onClick={toggleFavoritesFilter}>
+            查看全部
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   if (!currentNote) {
     return (
       <section className="page page-narrow">
@@ -200,6 +388,10 @@ export function ReviewPage() {
     );
   }
 
+  const cardStyle = {
+    "--drag-x": `${dragOffset}px`
+  } as CSSProperties;
+
   return (
     <section className="page review-page">
       <div className="review-meta">
@@ -207,7 +399,28 @@ export function ReviewPage() {
         {currentNote.chapterName ? <span>{currentNote.chapterName}</span> : null}
       </div>
 
-      <article className="note-card" aria-live="polite">
+      <div className="review-toolbar">
+        <button
+          className={`filter-chip ${showFavoritesOnly ? "is-selected" : ""}`}
+          type="button"
+          onClick={toggleFavoritesFilter}
+          aria-pressed={showFavoritesOnly}
+        >
+          只看收藏
+        </button>
+        <span>{visibleNotes.length} 条</span>
+      </div>
+
+      <article
+        key={`${currentNote.id}-${motionKey}`}
+        className={`note-card note-card-${motion} ${dragOffset ? "is-dragging" : ""}`}
+        style={cardStyle}
+        aria-live="polite"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={resetPointer}
+      >
         <button
           className={`favorite-button ${currentNote.favorite ? "is-favorite" : ""}`}
           type="button"
@@ -233,13 +446,13 @@ export function ReviewPage() {
 
       <div className="review-actions" aria-label="回顾操作">
         <button className="secondary-button" type="button" onClick={movePrevious}>
-          ‹ 上一条
+          ← 上一条
         </button>
         <button className="primary-button" type="button" onClick={moveRandom}>
           随机
         </button>
         <button className="secondary-button" type="button" onClick={moveNext}>
-          下一条 ›
+          下一条 →
         </button>
       </div>
     </section>

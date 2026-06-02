@@ -2,6 +2,7 @@ package com.tianlutao.readingreview;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -95,5 +96,11 @@ class ReadingReviewApplicationTests {
         .andExpect(jsonPath("$.totalDurationSeconds").value(30))
         .andExpect(jsonPath("$.averageDurationSeconds").value(30.0))
         .andExpect(jsonPath("$.recentEvents[0].contentPreview", containsString("Names can include commas")));
+
+    mockMvc.perform(get("/api/reading-records/daily").param("days", "7"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(7)))
+        .andExpect(jsonPath("$[6].views").value(1))
+        .andExpect(jsonPath("$[6].durationSeconds").value(30));
   }
 }

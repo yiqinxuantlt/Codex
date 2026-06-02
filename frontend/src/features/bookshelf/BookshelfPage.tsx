@@ -1,28 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type BookSummaryResponse, type NoteResponse } from "../../api/client";
+import { formatDateTime } from "../../shared/format";
 
 function bookAuthor(author?: string | null) {
   return author?.trim() || "作者未填";
 }
 
-function formatDate(value?: string | null) {
-  if (!value) {
-    return "尚未回顾";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
+function normalize(value: string) {
+  return value.trim().toLowerCase();
 }
 
 export function BookshelfPage() {
   const [books, setBooks] = useState<BookSummaryResponse[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
   const [notes, setNotes] = useState<NoteResponse[]>([]);
+  const [bookQuery, setBookQuery] = useState("");
+  const [noteQuery, setNoteQuery] = useState("");
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [error, setError] = useState("");
@@ -55,6 +49,7 @@ export function BookshelfPage() {
     let active = true;
     setLoadingNotes(true);
     setError("");
+    setNoteQuery("");
 
     api
       .bookNotes(selectedBookId)
@@ -84,6 +79,35 @@ export function BookshelfPage() {
     [books, selectedBookId]
   );
 
+  const filteredBooks = useMemo(() => {
+    const query = normalize(bookQuery);
+    if (!query) {
+      return books;
+    }
+
+    return books.filter((book) => `${book.title} ${book.author ?? ""}`.toLowerCase().includes(query));
+  }, [bookQuery, books]);
+
+  const filteredNotes = useMemo(() => {
+    const query = normalize(noteQuery);
+    if (!query) {
+      return notes;
+    }
+
+    return notes.filter((note) =>
+      `${note.content} ${note.chapterName ?? ""} ${note.remark ?? ""}`.toLowerCase().includes(query)
+    );
+  }, [noteQuery, notes]);
+
+  const bookshelfStats = useMemo(
+    () => ({
+      bookCount: books.length,
+      noteCount: books.reduce((total, book) => total + book.noteCount, 0),
+      favoriteCount: books.reduce((total, book) => total + book.favoriteCount, 0)
+    }),
+    [books]
+  );
+
   if (loadingBooks) {
     return (
       <section className="page page-narrow">
@@ -111,7 +135,7 @@ export function BookshelfPage() {
       <div className="page-header">
         <p className="eyebrow">Bookshelf</p>
         <h1>书架</h1>
-        <p>按书查看摘录和收藏数量。</p>
+        <p>按书查看摘录、收藏数量和最近回顾。</p>
       </div>
 
       {error ? (
@@ -120,23 +144,52 @@ export function BookshelfPage() {
         </p>
       ) : null}
 
+      <div className="bookshelf-summary" aria-label="书架概览">
+        <div>
+          <span>{bookshelfStats.bookCount}</span>
+          <small>本书</small>
+        </div>
+        <div>
+          <span>{bookshelfStats.noteCount}</span>
+          <small>条摘录</small>
+        </div>
+        <div>
+          <span>{bookshelfStats.favoriteCount}</span>
+          <small>条收藏</small>
+        </div>
+      </div>
+
       <div className="books-layout">
         <aside className="book-list" aria-label="书籍列表">
-          {books.map((book) => (
-            <button
-              className={`book-button ${book.id === selectedBookId ? "is-selected" : ""}`}
-              type="button"
-              key={book.id}
-              onClick={() => setSelectedBookId(book.id)}
-              aria-pressed={book.id === selectedBookId}
-            >
-              <span>
-                <strong>{book.title}</strong>
-                <small>{bookAuthor(book.author)}</small>
-              </span>
-              <span className="book-count">{book.noteCount}</span>
-            </button>
-          ))}
+          <label className="search-field">
+            <span>搜索书籍</span>
+            <input
+              type="search"
+              value={bookQuery}
+              onChange={(event) => setBookQuery(event.target.value)}
+              placeholder="书名或作者"
+            />
+          </label>
+
+          {filteredBooks.length ? (
+            filteredBooks.map((book) => (
+              <button
+                className={`book-button ${book.id === selectedBookId ? "is-selected" : ""}`}
+                type="button"
+                key={book.id}
+                onClick={() => setSelectedBookId(book.id)}
+                aria-pressed={book.id === selectedBookId}
+              >
+                <span>
+                  <strong>{book.title}</strong>
+                  <small>{bookAuthor(book.author)}</small>
+                </span>
+                <span className="book-count">{book.noteCount}</span>
+              </button>
+            ))
+          ) : (
+            <div className="quiet-state small">没有匹配的书籍</div>
+          )}
         </aside>
 
         <section className="book-detail" aria-live="polite">
@@ -159,15 +212,26 @@ export function BookshelfPage() {
                   </div>
                   <div>
                     <dt>最近</dt>
-                    <dd>{formatDate(selectedBook.lastViewedAt)}</dd>
+                    <dd>{formatDateTime(selectedBook.lastViewedAt, "尚未回顾")}</dd>
                   </div>
                 </dl>
               </div>
 
+              <label className="search-field search-field-inline">
+                <span>搜索摘录</span>
+                <input
+                  type="search"
+                  value={noteQuery}
+                  onChange={(event) => setNoteQuery(event.target.value)}
+                  placeholder="句子、章节或备注"
+                />
+              </label>
+
               {loadingNotes ? <div className="quiet-state small">正在取出摘录...</div> : null}
 
               <div className="note-list">
-                {notes.map((note) => (
+                {!loadingNotes && !filteredNotes.length ? <div className="quiet-state small">没有匹配的摘录</div> : null}
+                {filteredNotes.map((note) => (
                   <article className="note-list-item" key={note.id}>
                     <p>{note.content}</p>
                     <footer>

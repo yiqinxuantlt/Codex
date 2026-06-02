@@ -2,6 +2,7 @@ package com.tianlutao.readingreview.service;
 
 import com.tianlutao.readingreview.domain.Note;
 import com.tianlutao.readingreview.domain.ReadingEvent;
+import com.tianlutao.readingreview.dto.ReadingDayResponse;
 import com.tianlutao.readingreview.dto.ReadingEventRequest;
 import com.tianlutao.readingreview.dto.ReadingSummaryResponse;
 import com.tianlutao.readingreview.dto.ReadingSummaryResponse.RecentEventResponse;
@@ -9,7 +10,12 @@ import com.tianlutao.readingreview.exception.BadRequestException;
 import com.tianlutao.readingreview.exception.ResourceNotFoundException;
 import com.tianlutao.readingreview.repository.NoteRepository;
 import com.tianlutao.readingreview.repository.ReadingEventRepository;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadingService {
 
   private static final int CONTENT_PREVIEW_LIMIT = 120;
+  private static final int MAX_DAILY_RANGE_DAYS = 90;
+  private static final ZoneId DEFAULT_RECORD_ZONE = ZoneId.of("Asia/Shanghai");
 
   private final ReadingEventRepository readingEventRepository;
   private final NoteRepository noteRepository;
@@ -59,6 +67,32 @@ public class ReadingService {
         recentEvents);
   }
 
+  @Transactional(readOnly = true)
+  public List<ReadingDayResponse> dailySummary(Integer requestedDays) {
+    int days = requestedDays == null ? 14 : Math.min(Math.max(requestedDays, 1), MAX_DAILY_RANGE_DAYS);
+    LocalDate today = LocalDate.now(DEFAULT_RECORD_ZONE);
+    LocalDate startDate = today.minusDays(days - 1L);
+
+    Map<LocalDate, DayAccumulator> totalsByDay = new HashMap<>();
+    readingEventRepository
+        .findByViewedAtGreaterThanEqualOrderByViewedAtAscIdAsc(startDate.atStartOfDay(DEFAULT_RECORD_ZONE).toInstant())
+        .forEach(event -> {
+          LocalDate day = event.getViewedAt().atZone(DEFAULT_RECORD_ZONE).toLocalDate();
+          if (day.isBefore(startDate) || day.isAfter(today)) {
+            return;
+          }
+          totalsByDay.computeIfAbsent(day, ignored -> new DayAccumulator()).add(event);
+        });
+
+    return IntStream.range(0, days)
+        .mapToObj(offset -> {
+          LocalDate day = startDate.plusDays(offset);
+          DayAccumulator total = totalsByDay.getOrDefault(day, DayAccumulator.EMPTY);
+          return new ReadingDayResponse(day.toString(), total.views(), total.durationSeconds());
+        })
+        .toList();
+  }
+
   private RecentEventResponse toRecentEvent(ReadingEvent event) {
     Note note = event.getNote();
     if (note == null) {
@@ -84,5 +118,26 @@ public class ReadingService {
       return compact;
     }
     return compact.substring(0, CONTENT_PREVIEW_LIMIT - 3) + "...";
+  }
+
+  private static final class DayAccumulator {
+
+    private static final DayAccumulator EMPTY = new DayAccumulator();
+
+    private long views;
+    private long durationSeconds;
+
+    private void add(ReadingEvent event) {
+      views++;
+      durationSeconds += event.getDurationSeconds();
+    }
+
+    private long views() {
+      return views;
+    }
+
+    private long durationSeconds() {
+      return durationSeconds;
+    }
   }
 }

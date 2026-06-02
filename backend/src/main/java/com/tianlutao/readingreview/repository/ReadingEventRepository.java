@@ -18,6 +18,8 @@ public interface ReadingEventRepository extends JpaRepository<ReadingEvent, Long
 
   List<ReadingEvent> findTop10ByOrderByViewedAtDescIdDesc();
 
+  List<ReadingEvent> findByViewedAtGreaterThanEqualOrderByViewedAtAscIdAsc(Instant viewedAt);
+
   @Nullable
   @Query("select max(event.viewedAt) from ReadingEvent event where event.note.book.id = :bookId")
   Instant findLastViewedAtByBookId(@Param("bookId") Long bookId);

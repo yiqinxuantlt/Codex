@@ -41,6 +41,12 @@ export type ReadingSummaryResponse = {
   recentEvents: ReadingEventItem[];
 };
 
+export type ReadingDayResponse = {
+  date: string;
+  views: number;
+  durationSeconds: number;
+};
+
 export type HealthResponse = {
   status: string;
 };
@@ -139,5 +145,6 @@ export const api = {
   },
   recordReadingEvent: (noteId: number, durationSeconds: number, options: RequestInit = {}) =>
     jsonRequest<void>("/api/reading-events", "POST", { noteId, durationSeconds }, options),
-  readingSummary: () => request<ReadingSummaryResponse>("/api/reading-records/summary")
+  readingSummary: () => request<ReadingSummaryResponse>("/api/reading-records/summary"),
+  readingDaily: (days = 14) => request<ReadingDayResponse[]>(`/api/reading-records/daily?days=${days}`)
 };

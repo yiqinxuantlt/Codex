@@ -1,19 +1,58 @@
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, DragEvent, FormEvent } from "react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type CsvImportResponse } from "../../api/client";
+import { formatFileSize } from "../../shared/format";
+
+const REQUIRED_HEADERS = ["书名", "作者", "章节名称", "笔记内容", "备注"];
+
+function isCsvFile(file: File) {
+  return file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+}
 
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<CsvImportResponse | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [dragging, setDragging] = useState(false);
+
+  function acceptFile(nextFile: File | null) {
+    setResult(null);
+
+    if (!nextFile) {
+      setFile(null);
+      setError("");
+      return;
+    }
+
+    if (!isCsvFile(nextFile)) {
+      setFile(null);
+      setError("请选择 .csv 文件。");
+      return;
+    }
+
+    setFile(nextFile);
+    setError("");
+  }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const nextFile = event.target.files?.[0] ?? null;
-    setFile(nextFile);
-    setResult(null);
-    setError("");
+    acceptFile(event.target.files?.[0] ?? null);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setDragging(true);
+  }
+
+  function handleDragLeave() {
+    setDragging(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setDragging(false);
+    acceptFile(event.dataTransfer.files?.[0] ?? null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -48,13 +87,33 @@ export function ImportPage() {
 
       <form className="import-panel" onSubmit={handleSubmit}>
         <input id="csv-upload" className="sr-only" type="file" accept=".csv,text/csv" onChange={handleFileChange} />
-        <label className="upload-box" htmlFor="csv-upload">
+        <label
+          className={`upload-box ${dragging ? "is-dragging" : ""}`}
+          htmlFor="csv-upload"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <span className="upload-symbol" aria-hidden="true">
             +
           </span>
-          <strong>{file ? file.name : "选择 CSV 文件"}</strong>
+          <strong>{file ? file.name : "选择或拖入 CSV 文件"}</strong>
           <small>字段由后端解析，前端不保存笔记数据。</small>
+          {file ? (
+            <span className="file-summary">
+              {formatFileSize(file.size)} · {file.lastModified ? new Date(file.lastModified).toLocaleDateString("zh-CN") : "本地文件"}
+            </span>
+          ) : null}
         </label>
+
+        <section className="import-hints" aria-label="CSV 字段提示">
+          <span>建议包含字段</span>
+          <div>
+            {REQUIRED_HEADERS.map((header) => (
+              <i key={header}>{header}</i>
+            ))}
+          </div>
+        </section>
 
         <div className="form-actions">
           <button className="primary-button" type="submit" disabled={!file || submitting}>
