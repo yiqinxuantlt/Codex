@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: reading-review-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/reading_review}
+    username: ${SPRING_DATASOURCE_USERNAME:reading_review}
+    password: ${SPRING_DATASOURCE_PASSWORD:reading_review}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+server:
+  port: ${PORT:8080}

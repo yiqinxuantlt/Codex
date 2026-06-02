@@ -12,6 +12,7 @@ _edge-*-profile/
 _edge-mobile-*-profile*/
 _edge-swipe-test/
 .npm-cache/
+.maven-cache/
 .android-local/
 .gradle-cache/
 .superpowers/
@@ -20,6 +21,9 @@ _git/
 
 # Package/build output
 node_modules/
+frontend/node_modules/
+frontend/dist/
+backend/target/
 www/
 android/.gradle/
 android/app/build/

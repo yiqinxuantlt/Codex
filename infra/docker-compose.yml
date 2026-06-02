@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: reading-review-postgres
+    environment:
+      POSTGRES_DB: reading_review
+      POSTGRES_USER: reading_review
+      POSTGRES_PASSWORD: reading_review
+    ports:
+      - "5432:5432"
+    volumes:
+      - reading_review_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reading_review -d reading_review"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  reading_review_pgdata:

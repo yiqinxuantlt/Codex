@@ -103,6 +103,26 @@ APK 不是从电脑的 `http://localhost:8787/` 打开的，所以需要在 App 
 
 同步服务每次覆盖 `sync-data.json` 前，会把旧文件复制到本机 `backups/` 目录，最近保留 10 份。这些备份同样已排除在 GitHub 之外。
 
+## 标准 Web App 开发
+
+新版标准 Web App 采用 Monorepo：
+
+- `frontend/`：React + Vite + TypeScript
+- `backend/`：Spring Boot + PostgreSQL
+- `infra/`：本地 PostgreSQL Docker Compose
+
+启动顺序：
+
+```powershell
+npm.cmd run db:up
+cd backend
+mvn spring-boot:run
+cd ..\frontend
+npm.cmd run dev
+```
+
+根目录旧版静态应用仍然保留，可继续作为本地单页版和 APK/PWA 参考。
+
 ## GitHub Pages 说明
 
 GitHub Pages 可以托管静态版 `index.html`，用于本地浏览器存储和 CSV 导入。局域网同步需要运行 `sync-server.js`，GitHub Pages 不能运行这个本地同步服务。

@@ -4,6 +4,10 @@
   "private": true,
   "description": "A calm reading-note reviewer packaged as a web app and Android app.",
   "scripts": {
+    "db:down": "docker compose -f infra/docker-compose.yml down",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d",
+    "dev:backend": "cd backend && mvn spring-boot:run",
+    "dev:frontend": "npm --prefix frontend run dev",
     "android:build": "node tools/build-android-local.js",
     "android:build:system": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
     "cap:add:android": "npm run prepare:android && cap add android",
@@ -11,7 +15,8 @@
     "cap:sync": "npm run prepare:android && cap sync android",
     "prepare:android": "node tools/prepare-capacitor-web.js",
     "setup:android-local": "node tools/setup-android-local.js",
-    "verify": "node tools/verify-app.js"
+    "verify": "node tools/verify-app.js",
+    "verify:webapp": "npm --prefix frontend run build && cd backend && mvn test"
   },
   "dependencies": {
     "@capacitor/android": "8.3.4",
